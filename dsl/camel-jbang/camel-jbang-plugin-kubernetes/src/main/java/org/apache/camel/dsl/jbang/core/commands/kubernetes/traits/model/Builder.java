@@ -30,9 +30,9 @@ import com.fasterxml.jackson.annotation.Nulls;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({
-        "annotations", "baseImage", "enabled", "incrementalImageBuild", "limitCPU", "limitMemory",
-        "mavenProfiles", "nodeSelector", "orderStrategy", "platforms", "properties", "requestCPU", "requestMemory", "strategy",
-        "tasks", "tasksFilter", "tasksLimitCPU", "tasksLimitMemory", "tasksRequestCPU", "tasksRequestMemory", "verbose" })
+        "annotations", "baseImage", "enabled", "limitCPU", "limitMemory",
+        "mavenProfiles", "nodeSelector", "orderStrategy", "platforms", "properties", "requestCPU", "requestMemory",
+        "verbose" })
 public class Builder {
     @JsonProperty("annotations")
     @JsonPropertyDescription("When using `pod` strategy, annotation to use for the builder pod.")
@@ -49,18 +49,13 @@ public class Builder {
     @JsonSetter(
                 nulls = Nulls.SKIP)
     private Boolean enabled;
-    @JsonProperty("incrementalImageBuild")
-    @JsonPropertyDescription("Use the incremental image build option, to reuse existing containers (default `true`)")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private Boolean incrementalImageBuild;
     @JsonProperty("limitCPU")
-    @JsonPropertyDescription("When using `pod` strategy, the maximum amount of CPU required by the pod builder. Deprecated: use TasksRequestCPU instead with task name `builder`.")
+    @JsonPropertyDescription("When using `pod` strategy, the maximum amount of CPU required by the pod builder.")
     @JsonSetter(
                 nulls = Nulls.SKIP)
     private String limitCPU;
     @JsonProperty("limitMemory")
-    @JsonPropertyDescription("When using `pod` strategy, the maximum amount of memory required by the pod builder. Deprecated: use TasksRequestCPU instead with task name `builder`.")
+    @JsonPropertyDescription("When using `pod` strategy, the maximum amount of memory required by the pod builder.")
     @JsonSetter(
                 nulls = Nulls.SKIP)
     private String limitMemory;
@@ -90,50 +85,15 @@ public class Builder {
                 nulls = Nulls.SKIP)
     private List<String> properties;
     @JsonProperty("requestCPU")
-    @JsonPropertyDescription("When using `pod` strategy, the minimum amount of CPU required by the pod builder. Deprecated: use TasksRequestCPU instead with task name `builder`.")
+    @JsonPropertyDescription("When using `pod` strategy, the minimum amount of CPU required by the pod builder.")
     @JsonSetter(
                 nulls = Nulls.SKIP)
     private String requestCPU;
     @JsonProperty("requestMemory")
-    @JsonPropertyDescription("When using `pod` strategy, the minimum amount of memory required by the pod builder. Deprecated: use TasksRequestCPU instead with task name `builder`.")
+    @JsonPropertyDescription("When using `pod` strategy, the minimum amount of memory required by the pod builder.")
     @JsonSetter(
                 nulls = Nulls.SKIP)
     private String requestMemory;
-    @JsonProperty("strategy")
-    @JsonPropertyDescription("The strategy to use, either `pod` or `routine` (default `routine`)")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private Strategy strategy;
-    @JsonProperty("tasks")
-    @JsonPropertyDescription("A list of tasks to be executed (available only when using `pod` strategy) with format `<name>;<container-image>;<container-command>`.")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private List<String> tasks;
-    @JsonProperty("tasksFilter")
-    @JsonPropertyDescription("A list of tasks sorted by the order of execution in a csv format, ie, `<taskName1>,<taskName2>,...`. Mind that you must include also the operator tasks (`builder`, `quarkus-native`, `package`, `jib`, `s2i`) if you need to execute them. Useful only with `pod` strategy.")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private String tasksFilter;
-    @JsonProperty("tasksLimitCPU")
-    @JsonPropertyDescription("A list of limit cpu configuration for the specific task with format `<task-name>:<limit-cpu-conf>`.")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private List<String> tasksLimitCPU;
-    @JsonProperty("tasksLimitMemory")
-    @JsonPropertyDescription("A list of limit memory configuration for the specific task with format `<task-name>:<limit-memory-conf>`.")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private List<String> tasksLimitMemory;
-    @JsonProperty("tasksRequestCPU")
-    @JsonPropertyDescription("A list of request cpu configuration for the specific task with format `<task-name>:<request-cpu-conf>`.")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private List<String> tasksRequestCPU;
-    @JsonProperty("tasksRequestMemory")
-    @JsonPropertyDescription("A list of request memory configuration for the specific task with format `<task-name>:<request-memory-conf>`.")
-    @JsonSetter(
-                nulls = Nulls.SKIP)
-    private List<String> tasksRequestMemory;
     @JsonProperty("verbose")
     @JsonPropertyDescription("Enable verbose logging on build components that support it (e.g. Kaniko build pod). Deprecated no longer in use")
     @JsonSetter(
@@ -165,14 +125,6 @@ public class Builder {
 
     public void setEnabled(Boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public Boolean getIncrementalImageBuild() {
-        return this.incrementalImageBuild;
-    }
-
-    public void setIncrementalImageBuild(Boolean incrementalImageBuild) {
-        this.incrementalImageBuild = incrementalImageBuild;
     }
 
     public String getLimitCPU() {
@@ -245,62 +197,6 @@ public class Builder {
 
     public void setRequestMemory(String requestMemory) {
         this.requestMemory = requestMemory;
-    }
-
-    public Strategy getStrategy() {
-        return this.strategy;
-    }
-
-    public void setStrategy(Strategy strategy) {
-        this.strategy = strategy;
-    }
-
-    public List<String> getTasks() {
-        return this.tasks;
-    }
-
-    public void setTasks(List<String> tasks) {
-        this.tasks = tasks;
-    }
-
-    public String getTasksFilter() {
-        return this.tasksFilter;
-    }
-
-    public void setTasksFilter(String tasksFilter) {
-        this.tasksFilter = tasksFilter;
-    }
-
-    public List<String> getTasksLimitCPU() {
-        return this.tasksLimitCPU;
-    }
-
-    public void setTasksLimitCPU(List<String> tasksLimitCPU) {
-        this.tasksLimitCPU = tasksLimitCPU;
-    }
-
-    public List<String> getTasksLimitMemory() {
-        return this.tasksLimitMemory;
-    }
-
-    public void setTasksLimitMemory(List<String> tasksLimitMemory) {
-        this.tasksLimitMemory = tasksLimitMemory;
-    }
-
-    public List<String> getTasksRequestCPU() {
-        return this.tasksRequestCPU;
-    }
-
-    public void setTasksRequestCPU(List<String> tasksRequestCPU) {
-        this.tasksRequestCPU = tasksRequestCPU;
-    }
-
-    public List<String> getTasksRequestMemory() {
-        return this.tasksRequestMemory;
-    }
-
-    public void setTasksRequestMemory(List<String> tasksRequestMemory) {
-        this.tasksRequestMemory = tasksRequestMemory;
     }
 
     public Boolean getVerbose() {
