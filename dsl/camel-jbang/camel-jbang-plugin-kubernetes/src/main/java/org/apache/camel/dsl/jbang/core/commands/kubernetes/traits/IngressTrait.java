@@ -16,7 +16,10 @@
  */
 package org.apache.camel.dsl.jbang.core.commands.kubernetes.traits;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import io.fabric8.kubernetes.api.model.networking.v1.HTTPIngressPath;
 import io.fabric8.kubernetes.api.model.networking.v1.HTTPIngressPathBuilder;
@@ -27,6 +30,7 @@ import org.apache.camel.dsl.jbang.core.commands.kubernetes.ClusterType;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Container;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Ingress;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Traits;
+import org.apache.camel.dsl.jbang.core.common.RuntimeType;
 
 import static org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.ContainerTrait.DEFAULT_CONTAINER_PORT_NAME;
 
@@ -98,6 +102,36 @@ public class IngressTrait extends BaseTrait {
                 .endSpec();
 
         context.add(ingressBuilder);
+    }
+
+    @Override
+    public void applyRuntimeSpecificProperties(Traits traitConfig, TraitContext context, RuntimeType runtimeType) {
+        List<String> IngressProperties = new ArrayList<>();
+        if (runtimeType == RuntimeType.quarkus) {
+            Ingress ingressTrait = Optional.ofNullable(traitConfig.getIngress()).orElseGet(Ingress::new);
+            Container containerTrait = Optional.ofNullable(traitConfig.getContainer()).orElseGet(Container::new);
+
+            IngressProperties.add("quarkus.kubernetes.ingress.expose=true");
+            if (ingressTrait.getAnnotations() != null) {
+                ingressTrait.getAnnotations().forEach((name, value) -> IngressProperties
+                        .add("quarkus.kubernetes.ingress.annotations.\"%s\"=%s".formatted(name, value)));
+            }
+
+            IngressProperties.add("quarkus.kubernetes.ingress.rules.0.host=%s"
+                    .formatted(Optional.ofNullable(ingressTrait.getHost()).orElse(DEFAULT_INGRESS_HOST)));
+
+            IngressProperties.add("quarkus.kubernetes.ingress.rules.0.path=%s"
+                    .formatted(Optional.ofNullable(ingressTrait.getPath()).orElse(DEFAULT_INGRESS_PATH)));
+            IngressProperties.add("quarkus.kubernetes.ingress.rules.0.path-type=%s"
+                    .formatted(Optional.ofNullable(ingressTrait.getPathType()).orElse(DEFAULT_INGRESS_PATH_TYPE).getValue()));
+            IngressProperties.add("quarkus.kubernetes.ingress.rules.0.service-port-name=%s"
+                    .formatted(Optional.ofNullable(containerTrait.getServicePortName()).orElse(DEFAULT_CONTAINER_PORT_NAME)));
+            IngressProperties.add("quarkus.kubernetes.ingress.rules.0.service-name=%s".formatted(context.getName()));
+
+            IngressProperties.add("quarkus.kubernetes.ingress.ingress-class-name=%s".formatted(INGRESS_CLASS_NAME));
+        }
+        context.addOrAppendConfigurationResource("application.properties",
+                IngressProperties.stream().collect(Collectors.joining(System.lineSeparator())));
     }
 
     @Override
