@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import org.apache.camel.dsl.jbang.core.commands.kubernetes.ClusterType;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.knative.KnativeServiceTrait;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.knative.KnativeTrait;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Traits;
@@ -56,8 +57,8 @@ public class TraitCatalog {
         return traits.stream().sorted().collect(Collectors.toList());
     }
 
-    public List<Trait> traitsForProfile(TraitProfile profile) {
-        return traits.stream().filter(t -> t.accept(profile)).sorted().collect(Collectors.toList());
+    public List<Trait> traitsForProfile(ClusterType clusterType) {
+        return traits.stream().filter(t -> t.accept(clusterType)).sorted().collect(Collectors.toList());
     }
 
     public void register(Trait trait) {
@@ -67,14 +68,14 @@ public class TraitCatalog {
     /**
      * Applies traits in this catalog for given profile or all traits if profile is not set.
      *
-     * @param traitsSpec   the trait configuration spec.
-     * @param context      the trait context.
-     * @param traitProfile the optional trait profile to select traits.
-     * @param runtimeType  the runtime.
+     * @param traitsSpec  the trait configuration spec.
+     * @param context     the trait context.
+     * @param clusterType the optional trait profile to select traits.
+     * @param runtimeType the runtime.
      */
-    public void apply(Traits traitsSpec, TraitContext context, String traitProfile, RuntimeType runtimeType) {
-        if (traitProfile != null) {
-            new TraitCatalog().traitsForProfile(TraitProfile.valueOf(traitProfile.toUpperCase(Locale.US))).forEach(t -> {
+    public void apply(Traits traitsSpec, TraitContext context, String clusterType, RuntimeType runtimeType) {
+        if (clusterType != null) {
+            new TraitCatalog().traitsForProfile(ClusterType.valueOf(clusterType.toUpperCase(Locale.US))).forEach(t -> {
                 if (t.configure(traitsSpec, context)) {
                     t.apply(traitsSpec, context);
                     t.applyRuntimeSpecificProperties(traitsSpec, context, runtimeType);

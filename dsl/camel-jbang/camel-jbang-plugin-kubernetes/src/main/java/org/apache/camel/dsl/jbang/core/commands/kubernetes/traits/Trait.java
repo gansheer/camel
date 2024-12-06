@@ -17,6 +17,7 @@
 
 package org.apache.camel.dsl.jbang.core.commands.kubernetes.traits;
 
+import org.apache.camel.dsl.jbang.core.commands.kubernetes.ClusterType;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Traits;
 import org.apache.camel.dsl.jbang.core.common.RuntimeType;
 
@@ -47,12 +48,12 @@ public interface Trait extends Comparable<Trait> {
     int order();
 
     /**
-     * Evaluate if trait can be applied to trait profile
+     * Evaluate if trait can be applied to cluster type
      *
-     * @param  profile trait profile
-     * @return         true if applicable
+     * @param  clusterType cluster type
+     * @return             true if applicable
      */
-    boolean accept(TraitProfile profile);
+    boolean accept(ClusterType clusterType);
 
     /**
      * Add runtime properties to command trait context to be added to generated project properties

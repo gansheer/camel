@@ -29,6 +29,7 @@ import io.fabric8.kubernetes.api.model.IntOrString;
 import io.fabric8.kubernetes.api.model.IntOrStringBuilder;
 import io.fabric8.openshift.api.model.RouteBuilder;
 import io.fabric8.openshift.api.model.TLSConfigBuilder;
+import org.apache.camel.dsl.jbang.core.commands.kubernetes.ClusterType;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Container;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Route;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Traits;
@@ -169,8 +170,8 @@ public class RouteTrait extends BaseTrait {
     }
 
     @Override
-    public boolean accept(TraitProfile profile) {
-        return TraitProfile.OPENSHIFT == profile;
+    public boolean accept(ClusterType clusterType) {
+        return ClusterType.OPENSHIFT == clusterType;
     }
 
     private String getContent(String value) {

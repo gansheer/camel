@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.camel.dsl.jbang.core.commands.kubernetes.traits;
+package org.apache.camel.dsl.jbang.core.commands.k;
 
 public enum TraitProfile {
 

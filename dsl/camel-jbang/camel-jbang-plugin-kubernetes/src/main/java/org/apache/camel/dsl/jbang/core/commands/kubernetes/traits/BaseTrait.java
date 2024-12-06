@@ -17,6 +17,7 @@
 
 package org.apache.camel.dsl.jbang.core.commands.kubernetes.traits;
 
+import org.apache.camel.dsl.jbang.core.commands.kubernetes.ClusterType;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Traits;
 import org.apache.camel.dsl.jbang.core.common.RuntimeType;
 
@@ -46,7 +47,7 @@ public abstract class BaseTrait implements Trait {
     }
 
     @Override
-    public boolean accept(TraitProfile profile) {
+    public boolean accept(ClusterType clusterType) {
         return true;
     }
 
