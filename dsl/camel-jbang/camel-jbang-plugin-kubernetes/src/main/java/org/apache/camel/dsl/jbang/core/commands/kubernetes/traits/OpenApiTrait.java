@@ -21,6 +21,7 @@ import java.util.Optional;
 
 import org.apache.camel.RuntimeCamelException;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Mount;
+import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.MountBuilder;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Openapi;
 import org.apache.camel.dsl.jbang.core.commands.kubernetes.traits.model.Traits;
 import org.apache.camel.util.ObjectHelper;
@@ -55,9 +56,9 @@ public class OpenApiTrait extends BaseTrait {
             MountTrait delegate = new MountTrait();
             // ugly code
             // TODO : builder or fluent
+            // TODO traits class builder
             Traits traits = new Traits();
-            Mount mount = new Mount();
-            mount.setResources(openApiTrait.getConfigmaps());
+            Mount mount = MountBuilder.aMount().withResources(openApiTrait.getConfigmaps()).build();
             traits.setMount(mount);
             delegate.apply(traits, context);
         }
