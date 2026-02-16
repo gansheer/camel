@@ -18,12 +18,16 @@ package org.apache.camel.processor;
 
 import org.apache.camel.ContextTestSupport;
 import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.support.processor.PredicateValidationException;
 import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class SplitMultipleValidateTest extends ContextTestSupport {
 
     @Test
-    public void testMultipleValidate() throws Exception {
+    public void testMultipleValidateOk() throws Exception {
         getMockEndpoint("mock:split1").expectedMessageCount(1);
         getMockEndpoint("mock:line1").expectedMessageCount(3);
         getMockEndpoint("mock:split2").expectedMessageCount(1);
@@ -34,6 +38,22 @@ public class SplitMultipleValidateTest extends ContextTestSupport {
         template.sendBody("direct:start1", "Hello World");
         template.sendBody("direct:start2", "Hello World");
         template.sendBody("direct:start3", "Hello World");
+
+        assertMockEndpointsSatisfied();
+    }
+
+    @Test
+    public void testMultipleValidateFail() throws Exception {
+        getMockEndpoint("mock:split4").expectedMessageCount(0);
+        getMockEndpoint("mock:line4").expectedMessageCount(1);
+
+        try {
+            template.sendBody("direct:start4", "Hello World");
+            fail();
+        } catch (Exception e) {
+            PredicateValidationException pve = assertIsInstanceOf(PredicateValidationException.class, e.getCause());
+            assertTrue(pve.getMessage().startsWith("Validation failed for Predicate[body > 2]"));
+        }
 
         assertMockEndpointsSatisfied();
     }
@@ -73,6 +93,18 @@ public class SplitMultipleValidateTest extends ContextTestSupport {
                         .end() // filter end
                     .end() // split end
                     .to("mock:split3");
+
+                from("direct:start4")
+                    .split(constant("123").tokenize(""))
+                        .filter(body().isNotNull())
+                            .validate(body().isNotNull())
+                            .validate(body().isInstanceOf(String.class))
+                            .validate(body().isGreaterThan("2"))
+                            .log("Item ${body}")
+                            .to("mock:line4")
+                        .end() // filter end
+                    .end() // split end
+                    .to("mock:split4");
             }
         };
     }
