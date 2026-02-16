@@ -84,6 +84,23 @@ XML::
     </resequence>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              simple:
+                expression: "${body}"
+            steps:
+              - to:
+                  uri: mock:result
+----
 ====
 
 The batch resequencer can be further configured via the `size()` and `timeout()` methods:
@@ -111,6 +128,26 @@ XML::
         <to uri="mock:result"/>
     </resequence>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              simple:
+                expression: "${body}"
+            batchConfig:
+              batchSize: 300
+              batchTimeout: 4000
+            steps:
+              - to:
+                  uri: mock:result
 ----
 ====
 
@@ -143,6 +180,23 @@ XML::
         <to uri="mock:result"/>
     </resequence>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: mySeqNo
+            steps:
+              - to:
+                  uri: mock:result
 ----
 ====
 
@@ -179,6 +233,25 @@ XML::
     </resequence>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: mySeqNo
+            batchConfig:
+              allowDuplicates: "true"
+            steps:
+              - to:
+                  uri: mock:result
+----
 ====
 
 === Reverse Ordering
@@ -213,6 +286,25 @@ XML::
         <to uri="mock:result"/>
     </resequence>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: mySeqNo
+            batchConfig:
+              reverse: "true"
+            steps:
+              - to:
+                  uri: mock:result
 ----
 ====
 
@@ -251,6 +343,25 @@ XML::
     </resequence>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: seqno
+            batchConfig:
+              ignoreInvalidExchanges: "true"
+            steps:
+              - to:
+                  uri: mock:result
+----
 ====
 
 This option is available for both batch and stream mode.
@@ -260,6 +371,13 @@ This option is available for both batch and stream mode.
 It's now much easier to use the Resequencer to resequence messages from JMS queues based on JMSPriority.
 For that to work, you need to use the two new options `allowDuplicates` and `reverse`.
 
+Notice this is *only* possible in the `batch` mode of the Resequencer.
+
+[tabs]
+====
+
+Java::
++
 [source,java]
 ----
 from("jms:queue:foo")
@@ -270,8 +388,41 @@ from("jms:queue:foo")
     .to("mock:result");
 ----
 
-Notice this is *only* possible in the `batch` mode of the Resequencer.
+XML::
++
+[source,xml]
+----
+<route>
+    <from uri="jms:queue:foo"/>
+    <resequence>
+        <header>JMSPriority</header>
+        <batchConfig reverse="true" allowDuplicates="true" batchTimeout="3000"/>
+        <to uri="mock:result"/>
+    </resequence>
+</route>
+----
 
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: jms:queue:foo
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: JMSPriority
+            batchConfig:
+              reverse: "true"
+              allowDuplicates: "true"
+              batchTimeout: 3000
+            steps:
+              - to:
+                  uri: mock:result
+----
+====
 
 == Stream Resequencing
 
@@ -307,6 +458,24 @@ XML::
     </resequence>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: seqnum
+            streamConfig: {}
+            steps:
+              - to:
+                  uri: mock:result
+----
 ====
 
 The Resequencer keeps a backlog of pending messages in a backlog.
@@ -335,6 +504,26 @@ XML::
         <to uri="mock:result"/>
     </resequence>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: seqno
+            streamConfig:
+              timeout: 4000
+              capacity: 5000
+            steps:
+              - to:
+                  uri: mock:result
 ----
 ====
 
@@ -393,12 +582,51 @@ public class MyFileNameExpression implements Expression {
 
 And then you can use this expression in a Camel route:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 from("direct:start")
     .resequence(new MyFileNameExpression()).stream().timeout(2000)
     .to("mock:result");
 ----
+
+XML::
++
+[source,xml]
+----
+<route>
+    <from uri="direct:start"/>
+    <resequence>
+        <method beanType="com.foo.MyFileNameExpression"/>
+        <streamConfig timeout="2000"/>
+        <to uri="mock:result"/>
+    </resequence>
+</route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              method:
+                beanType: com.foo.MyFileNameExpression
+            streamConfig:
+              timeout: 2000
+            steps:
+              - to:
+                  uri: mock:result
+----
+====
+
 
 === Rejecting old messages
 
@@ -436,6 +664,25 @@ XML::
     </resequence>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - resequence:
+            expression:
+              header:
+                expression: seqno
+            streamConfig:
+              rejectOld: "true"
+            steps:
+              - to:
+                  uri: mock:result
+----
 ====
 
-If an old message is detected then Camel throws `MessageRejectedException`.
+If an old message is detected then Camel throws `MessageRejectedException` exception.

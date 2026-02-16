@@ -118,6 +118,7 @@ public class ResequenceDefinition extends OutputDefinition<ResequenceDefinition>
      */
     public ResequenceDefinition stream(StreamResequencerConfig config) {
         this.streamConfig = config;
+        this.resequencerConfig = config;
         this.batchConfig = null;
         return this;
     }
@@ -130,6 +131,7 @@ public class ResequenceDefinition extends OutputDefinition<ResequenceDefinition>
      */
     public ResequenceDefinition batch(BatchResequencerConfig config) {
         this.batchConfig = config;
+        this.resequencerConfig = config;
         this.streamConfig = null;
         return this;
     }
