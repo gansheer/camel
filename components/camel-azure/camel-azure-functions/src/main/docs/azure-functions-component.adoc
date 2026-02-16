@@ -228,7 +228,4 @@ from("direct:create")
     .log("Created function app: ${header.CamelAzureFunctionsResourceId}");
 ----
 
-== Header Variables
-
-Headers can be used to override endpoint options at runtime.
-See the component endpoint headers documentation above for the full list of supported headers.
+include::spring-boot:partial$starter.adoc[]
