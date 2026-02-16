@@ -31,8 +31,6 @@ import org.apache.camel.processor.aggregate.GroupedBodyAggregationStrategy;
 import org.apache.camel.processor.aggregate.MemoryAggregationRepository;
 import org.apache.camel.processor.loadbalancer.LoadBalancer;
 import org.apache.camel.processor.loadbalancer.RoundRobinLoadBalancer;
-import org.apache.camel.saga.CamelSagaService;
-import org.apache.camel.saga.InMemorySagaService;
 import org.apache.camel.spi.AggregationRepository;
 import org.apache.camel.spi.BeanRepository;
 import org.apache.camel.spi.ClaimCheckRepository;
@@ -47,6 +45,14 @@ import org.slf4j.LoggerFactory;
 public class StubBeanRepository implements BeanRepository {
 
     private final static Logger LOG = LoggerFactory.getLogger(StubBeanRepository.class);
+
+    private final IdempotentRepository service1 = new MemoryIdempotentRepository();
+    private final AggregationRepository service2 = new MemoryAggregationRepository();
+    private final ClaimCheckRepository service3 = new DefaultClaimCheckRepository();
+    private final StateRepository<?, ?> service4 = new MemoryStateRepository();
+    private final AggregationStrategy service5 = new GroupedBodyAggregationStrategy();
+    private final AggregateController service6 = new DefaultAggregateController();
+    private final LoadBalancer service7 = new RoundRobinLoadBalancer();
 
     private final String stubPattern;
 
@@ -95,28 +101,25 @@ public class StubBeanRepository implements BeanRepository {
         // add repositories and other stuff we need to stub out, so they run noop/in-memory only
         // and do not start live connections to databases or other services
         if (IdempotentRepository.class.isAssignableFrom(type)) {
-            return (T) new MemoryIdempotentRepository();
+            return (T) service1;
         }
         if (AggregationRepository.class.isAssignableFrom(type)) {
-            return (T) new MemoryAggregationRepository();
+            return (T) service2;
         }
         if (ClaimCheckRepository.class.isAssignableFrom(type)) {
-            return (T) new DefaultClaimCheckRepository();
+            return (T) service3;
         }
         if (StateRepository.class.isAssignableFrom(type)) {
-            return (T) new MemoryStateRepository();
+            return (T) service4;
         }
         if (AggregationStrategy.class.isAssignableFrom(type)) {
-            return (T) new GroupedBodyAggregationStrategy();
+            return (T) service5;
         }
         if (AggregateController.class.isAssignableFrom(type)) {
-            return (T) new DefaultAggregateController();
-        }
-        if (CamelSagaService.class.isAssignableFrom(type)) {
-            return (T) new InMemorySagaService();
+            return (T) service6;
         }
         if (LoadBalancer.class.isAssignableFrom(type)) {
-            return (T) new RoundRobinLoadBalancer();
+            return (T) service7;
         }
         if (Logger.class.isAssignableFrom(type)) {
             return (T) LOG;
