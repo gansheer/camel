@@ -66,48 +66,127 @@ The timeout values are in milliseconds.
 
 For example to download an FTP file:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+from("direct:payload")
+  .poll("ftp:myserver.com/myfolder?fileName=report-file.pdf");
+----
+
+XML::
++
 [source,xml]
 ----
-<rest path="/report">
-    <description>Report REST API</description>
-    <get path="/{id}/payload">
-        <route id="report-payload-download">
-            <poll uri="ftp:myserver.com/myfolder?fileName=report-file.pdf"/>
-        </route>
-    </get>
-</rest>
+<route>
+    <from uri="direct:payload"/>
+    <poll uri="ftp:myserver.com/myfolder?fileName=report-file.pdf"/>
+</route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:payload
+      steps:
+        - poll:
+            uri: ftp:myserver.com/myfolder?fileName=report-file.pdf
+----
+====
 
 NOTE: You can use dynamic values using the simple language in the uri, as shown below:
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+from("direct:payload")
+  .poll("ftp:myserver.com/myfolder?fileName=report-${header.id}.pdf");
+----
+
+XML::
++
 [source,xml]
 ----
-<rest path="/report">
-    <description>Report REST API</description>
-    <get path="/{id}/payload">
-        <route id="report-payload-download">
-            <poll uri="ftp:myserver.com/myfolder?fileName=report-${header.id}.pdf"/>
-        </route>
-    </get>
-</rest>
+<route>
+    <from uri="direct:payload"/>
+    <poll uri="ftp:myserver.com/myfolder?fileName=report-${header.id}.pdf"/>
+</route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:payload
+      steps:
+        - poll:
+            uri: "ftp:myserver.com/myfolder?fileName=report-${header.id}.pdf"
+----
+====
 
 === Using Poll with Rest DSL
 
 You can also use `poll` with xref:manual::rest-dsl.adoc[Rest DSL] to,
 for example, download a file from xref:ROOT:aws2-s3-component.adoc[AWS S3] as the response of an API call.
 
+[tabs]
+====
+Java::
++
+[source,java]
+----
+rest("/report")
+  .get("/{id}/payload")
+    .to*("direct:payload");
+
+from("direct:payload")
+  .poll("aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf")
+----
+
+XML::
++
 [source,xml]
 ----
-<rest path="/report">
-    <description>Report REST API</description>
+<rest path="/report" desription="Report REST API">
     <get path="/{id}/payload">
-        <route id="report-payload-download">
-            <poll uri="aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf"/>
-        </route>
+        <to uri="direct:payload"/>
     </get>
 </rest>
+
+<route>
+    <from uri="direct:payload"/>
+    <poll uri="aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf"/>
+</route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- rest:
+    path: /report
+    get:
+      - path: /{id}/payload
+        to:
+          uri: direct:payload
+- route:
+    from:
+      uri: direct:payload
+      steps:
+        - poll:
+            uri: aws-s3:xavier-dev?amazonS3Client=#s3client&deleteAfterRead=false&fileName=report-file.pdf
+----
+====
 
 === Using Poll with file based components
 

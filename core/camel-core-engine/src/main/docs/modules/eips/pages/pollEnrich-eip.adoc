@@ -103,8 +103,15 @@ public class ExampleAggregationStrategy implements AggregationStrategy {
 }
 ----
 
-You then use the `AggregationStrategy` with the `pollEnrich` in the Java DSL as shown:
+You then use the `AggregationStrategy` with the `pollEnrich` in the following example,
+where Camel will poll a file (timeout 10 seconds). The `AggregationStrategy` is then used to merge the file with the existing `Exchange`.
 
+
+[tabs]
+====
+
+Java::
++
 [source,java]
 ----
 AggregationStrategy aggregationStrategy = ...
@@ -114,44 +121,98 @@ from("direct:start")
   .to("mock:result");
 ----
 
-In the example, Camel will poll a file (timeout 10 seconds).
-The `AggregationStrategy` is then used to merge the file with the existing `Exchange`.
-
-In XML DSL you use `pollEnrich` as follows:
-
+XML::
++
 [source,xml]
 ----
 <bean id="myStrategy" class="com.foo.ExampleAggregationStrategy"/>
 
-<camelContext id="camel" xmlns="http://camel.apache.org/schema/spring">
-  <route>
-    <from uri="direct:start"/>
-    <pollEnrich timeout="10000" aggregationStrategy="myStrategy">
-      <constant>file:inbox?fileName=data.txt</constant>
-    </pollEnrich>
-    <to uri="mock:result"/>
-  </route>
-</camelContext>
+<route>
+  <from uri="direct:start"/>
+  <pollEnrich timeout="10000" aggregationStrategy="myStrategy">
+    <constant>file:inbox?fileName=data.txt</constant>
+  </pollEnrich>
+  <to uri="mock:result"/>
+</route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - pollEnrich:
+            aggregationStrategy: myStrategy
+            timeout: 10000
+            expression:
+              constant:
+                expression: file:inbox?fileName=data.txt
+        - to:
+            uri: mock:result
+----
+====
+
 
 === Using Poll Enrich with Rest DSL
 
 You can also use `pollEnrich` with xref:manual::rest-dsl.adoc[Rest DSL] to,
 for example, download a file from xref:ROOT:aws2-s3-component.adoc[AWS S3] as the response of an API call.
 
+[tabs]
+====
+
+Java::
++
+[source,java]
+----
+rest("/report")
+  .get("/{id}/report")
+    .to("direct:report");
+
+from("direct:report")
+  .pollEnrich("aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf");
+----
+
+XML::
++
 [source,xml]
 ----
 <rest path="/report">
-    <description>Report REST API</description>
-    <get path="/{id}/payload">
-        <route id="report-payload-download">
-            <pollEnrich>
-                <constant>aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf</constant>
-            </pollEnrich>
-        </route>
+    <get path="/{id}/report">
+      <to uri="direct:report"/>
     </get>
 </rest>
+
+<route>
+  <from uri="direct:report"/>
+    <pollEnrich>
+        <constant>aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf</constant>
+    </pollEnrich>
+</route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- rest:
+    path: /report
+    get:
+      - path: /{id}/report
+        to:
+          uri: direct:report
+
+- route:
+    from:
+      uri: direct:report
+      steps:
+        - pollEnrich:
+            uri: aws-s3:xavier-dev?amazonS3Client=#s3client&amp;deleteAfterRead=false&amp;fileName=report-file.pdf
+----
+====
 
 Notice that the enriched endpoint is a constant, however, Camel also supports dynamic endpoints which is covered next.
 
@@ -183,6 +244,22 @@ XML::
   </pollEnrich>
   <to uri="direct:result"/>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - pollEnrich:
+            expression:
+              simple:
+                expression: "seda:${header.queueName}"
+        - to:
+            uri: direct:result
 ----
 ====
 

@@ -66,24 +66,16 @@ YAML::
 ----
 - route:
     from:
-      uri: activemq
-      parameters:
-        destinationName: cheese
+      uri: activemq:cheese
       steps:
         - pipeline:
             steps:
               - to:
-                  uri: bean
-                  parameters:
-                    beanName: foo
+                  uri: bean:foo
               - to:
-                  uri: bean
-                  parameters:
-                    beanName: bar
+                  uri: bean:bar
               - to:
-                  uri: activemq
-                  parameters:
-                    destinationName: wine
+                  uri: activemq:wine
 ----
 ====
 
@@ -120,22 +112,14 @@ YAML::
 ----
 - route:
     from:
-      uri: activemq
-      parameters:
-        destinationName: cheese
+      uri: activemq:SomeQueue
       steps:
         - to:
-            uri: bean
-            parameters:
-              beanName: foo
+            uri: bean:foo
         - to:
-            uri: bean
-            parameters:
-              beanName: bar
+            uri: bean:bar
         - to:
-            uri: activemq
-            parameters:
-              destinationName: wine
+            uri: activemq:OutputQueue
 ----
 ====
 
@@ -206,39 +190,25 @@ YAML::
 ----
 - route:
     from:
-      uri: activemq
-      parameters:
-        destinationName: SomeQueue
+      uri: activemq:SomeQueue
       steps:
         - multicast:
             steps:
               - pipeline:
                   steps:
                     - to:
-                        uri: bean
-                        parameters:
-                          beanName: something
+                        uri: bean:something
                     - to:
-                        uri: log
-                        parameters:
-                          loggerName: Something
+                        uri: log:something
               - pipeline:
                   steps:
                     - to:
-                        uri: bean
-                        parameters:
-                          beanName: foo
+                        uri: bean:foo
                     - to:
-                        uri: bean
-                        parameters:
-                          beanName: bar
+                        uri: bean:bar
                     - to:
-                        uri: activemq
-                        parameters:
-                          destinationName: OutputQueue
+                        uri: activemq:OutputQueue
         - to:
-            uri: log
-            parameters:
-              loggerName: result
+            uri: log:result
 ----
 ====

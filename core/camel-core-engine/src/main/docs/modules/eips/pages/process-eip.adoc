@@ -117,6 +117,18 @@ Or if you use Spring XML you can create the processor via `<bean>`:
 
 </beans>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: activemq:myQueue
+      steps:
+        - process:
+            ref: "#class:com.foo.MyProcessor"
+----
 ====
 
 === Why use `process` when you can use `to` instead?
@@ -136,4 +148,4 @@ The process can be used in routes as an anonymous inner class such:
 
 This is usable for quickly whirling up some code. If the code in the
 inner class gets a bit more complicated, it is advised to
-refactor it into a separate class.
+refactor into a separate class.

@@ -57,4 +57,22 @@ XML::
     </route>
 </routes>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - to:
+            uri: jms:queue:foo
+- route:
+    from:
+      uri: jms:queue:foo
+      steps:
+        - to:
+            uri: bean:foo
+----
 ====

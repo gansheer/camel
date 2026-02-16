@@ -50,12 +50,40 @@ XML::
 <routes>
     <route>
         <from uri="direct:start"/>
-        <to uri="jms:queue:foo"/>
+        <to uri="jms:topic:cheese"/>
     </route>
     <route>
-        <from uri="jms:queue:foo"/>
+        <from uri="jms:topic:cheese"/>
         <to uri="bean:foo"/>
     </route>
+    <route>
+        <from uri="jms:topic:cheese"/>
+        <to uri="bean:bar"/>
+    </route>
 </routes>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - to:
+            uri: jms:topic:cheese
+- route:
+    from:
+      uri: jms:topic:cheese
+      steps:
+        - to:
+            uri: bean:foo
+- route:
+    from:
+      uri: jms:topic:cheese
+      steps:
+        - to:
+            uri: bean:bar
 ----
 ====
