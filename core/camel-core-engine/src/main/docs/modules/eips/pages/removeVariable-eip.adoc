@@ -45,6 +45,20 @@ XML::
   <to uri="mock:result"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: seda:b
+      steps:
+        - removeVariable:
+            name: myVar
+        - to:
+            uri: mock:result
+----
 ====
 
 TIP: If you want to remove all variables from the `Exchange` then use `*` as the name.

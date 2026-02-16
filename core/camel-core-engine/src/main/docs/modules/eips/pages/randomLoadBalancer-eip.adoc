@@ -55,4 +55,23 @@ XML::
     </loadBalance>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - loadBalance:
+            steps:
+              - randomLoadBalancer: {}
+              - to:
+                  uri: seda:x
+              - to:
+                  uri: seda:y
+              - to:
+                  uri: seda:z
+----
 ====

@@ -45,6 +45,20 @@ XML::
   <to uri="mock:result"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: seda:b
+      steps:
+        - removeProperty:
+            name: myProperty
+        - to:
+            uri: mock:result
+----
 ====
 
 == See Also

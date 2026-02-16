@@ -64,6 +64,18 @@ XML::
     <to uri="bean:processMessage"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: jms:someQueue?exchangePattern=InOut
+      steps:
+        - to:
+            uri: bean:processMessage
+----
 ====
 
 == Using setExchangePattern EIP
@@ -92,6 +104,20 @@ XML::
     <to uri="jms:queue:cheese"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:foo
+      steps:
+        - setExchangePattern:
+            pattern: InOut
+        - to:
+            uri: jms:queue:cheese
+----
 ====
 
 When using `setExchangePattern` then the xref:manual::exchange-pattern.adoc[Exchange Pattern]
@@ -99,15 +125,55 @@ on the xref:manual::exchange.adoc[Exchange] is changed from this point onwards i
 
 This means you can change the pattern back again at a later point:
 
+[tabs]
+====
+
+Java::
++
 [source,java]
 ----
 from("direct:foo")
   .setExchangePattern(ExchangePattern.InOnly)
-  .to("jms:queue:one-way");
+  .to("jms:queue:one-way")
   .setExchangePattern(ExchangePattern.InOut)
   .to("jms:queue:in-and-out")
-  .log("InOut MEP received ${body}")
+  .log("InOut MEP received ${body}");
 ----
+
+XML::
++
+[source,xml]
+----
+    <route>
+        <from uri="direct:foo"/>
+        <setExchangePattern pattern="InOnly"/>
+        <to uri="jms:queue:one-way"/>
+        <setExchangePattern pattern="InOut"/>
+        <to uri="jms:queue:in-and-out"/>
+        <log message="InOut MEP received ${body}"/>
+    </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:foo
+      steps:
+        - setExchangePattern:
+            pattern: InOnly
+        - to:
+            uri: jms:queue:one-way
+        - setExchangePattern:
+            pattern: InOut
+        - to:
+            uri: jms:queue:in-and-out
+        - log:
+            message: "InOut MEP received ${body}"
+----
+====
 
 NOTE: Using `setExchangePattern` to change the xref:manual::exchange-pattern.adoc[Exchange Pattern]
 is often only used in special use-cases where you must
