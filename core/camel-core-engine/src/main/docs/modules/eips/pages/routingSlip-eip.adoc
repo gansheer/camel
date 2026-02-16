@@ -62,6 +62,20 @@ XML::
   </routingSlip>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: activemq:cheese
+      steps:
+        - routingSlip:
+            expression:
+              header:
+                expression: whereTo
+----
 ====
 
 The value of the header ("whereTo") should be a comma-delimited string of endpoint URIs you wish the message to be routed to.
@@ -96,22 +110,37 @@ You can use it to skip endpoints which are invalid.
 Java::
 +
 [source,java]
----------------------
+----
 from("direct:start")
-  .routingSlip("myHeader").ignoreInvalidEndpoints();
----------------------
+  .routingSlip(header("myHeader")).ignoreInvalidEndpoints();
+----
 
 XML::
 +
 [source,xml]
----------------------
+----
 <route>
   <from uri="direct:start"/>
   <routingSlip ignoreInvalidEndpoints="true">
     <header>myHeader</header>
   </routingSlip>
 </route>
----------------------
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - routingSlip:
+            ignoreInvalidEndpoints: "true"
+            expression:
+              header:
+                expression: myHeader
+----
 ====
 
 Then let us say the `myHeader` contains the following two endpoints `direct:foo,xxx:bar`.

@@ -55,6 +55,28 @@ XML::
     <to uri="mock:result"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - circuitBreaker:
+            steps:
+              - to:
+                  uri: http://fooservice.com/faulty
+              - onFallback:
+                  steps:
+                    - transform:
+                        expression:
+                          constant:
+                            expression: Fallback message
+        - to:
+            uri: mock:result
+----
 ====
 
 In case the calling the downstream HTTP service is failing, and an exception is thrown,
@@ -102,6 +124,29 @@ XML::
   <log message="After Resilience: ${body}"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - circuitBreaker:
+            steps:
+              - resilience4jConfiguration:
+                  timeoutDuration: 2000
+                  timeoutEnabled: "true"
+              - log:
+                  message: "Resilience processing start: ${threadName}"
+              - to:
+                  uri: http://fooservice.com/faulty
+              - log:
+                  message: "Resilience processing end: ${threadName}"
+        - log:
+            message: "After Resilience ${body}"
+----
 ====
 
 In this example if calling the downstream service does not return a response within 2 seconds,
@@ -116,6 +161,10 @@ is not reacting also.
 However, you can enable Camels error handler with circuit breaker by enabling
 the `inheritErrorHandler` option, as shown:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 // Camel's error handler that will attempt to redeliver the message 3 times
@@ -131,6 +180,48 @@ from("direct:start")
     .to("log:result")
     .to("mock:result");
 ----
+
+
+XML::
++
+[source,xml]
+----
+<route>
+    <from uri="direct:start"/>
+    <to uri="log:start"/>
+    <circuitBreaker inheritErrorHandler="true">
+        <to uri="mock:a"/>
+        <throwException exceptionType="java.lang.IllegalArgumentException" message="Forced"/>
+    </circuitBreaker>
+    <to uri="log:result"/>
+    <to uri="mock:result"/>
+</route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - to:
+            uri: log:start
+        - circuitBreaker:
+            inheritErrorHandler: "true"
+            steps:
+              - to:
+                  uri: mock:a
+              - throwException:
+                  exceptionType: "java.lang.IllegalArgumentException"
+                  message: "Forced"
+        - to:
+            uri: log:result
+        - to:
+            uri: mock:result
+----
+====
 
 This example is from a test, where you can see the Circuit Breaker EIP block has been hardcoded
 to always fail by throwing an exception. Because the `inheritErrorHandler` has been enabled,

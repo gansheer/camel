@@ -27,8 +27,11 @@ include::partial$eip-exchangeProperties.adoc[]
 
 We want to load balance between three endpoints in round-robin mode.
 
-This is done as follows in Java DSL:
 
+[tabs]
+====
+Java::
++
 [source,java]
 ----
 from("direct:start")
@@ -39,8 +42,8 @@ from("direct:start")
     .end();
 ----
 
-In XML, you'll have a route like this:
-
+XML::
++
 [source,xml]
 ----
 <route>
@@ -53,3 +56,23 @@ In XML, you'll have a route like this:
     </loadBalance>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - loadBalance:
+            steps:
+              - roundRobinLoadBalancer: {}
+              - to:
+                  uri: seda:x
+              - to:
+                  uri: seda:y
+              - to:
+                  uri: seda:z
+----
+====

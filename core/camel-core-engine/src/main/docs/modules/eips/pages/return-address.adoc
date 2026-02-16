@@ -40,6 +40,19 @@ XML::
     <to pattern="InOut" uri="jms:queue:cheese"/>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:foo
+      steps:
+        - to:
+            uri: jms:queue:cheese
+            pattern: InOut
+----
 ====
 
 You can also specify a named reply queue with the `replyTo` option (instead of a temporary queue).
@@ -63,6 +76,18 @@ XML::
     <from uri="direct:foo"/>
     <to uri="jms:queue:cheese?replyTo=myReplyQueue"/>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:foo
+      steps:
+        - to:
+            uri: jms:queue:cheese?replyTo=myReplyQueue
 ----
 ====
 

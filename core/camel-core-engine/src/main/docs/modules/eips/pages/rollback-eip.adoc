@@ -56,6 +56,28 @@ XML::
     </choice>
 </route>
 ----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - choice:
+            when:
+              - expression:
+                  simple:
+                    expression: "${body} contains 'error'"
+                steps:
+                  - rollback:
+                      message: That do not work
+            otherwise:
+              steps:
+                - to:
+                    uri: direct:continue
+----
 ====
 
 When Camel is rolling back, then a `RollbackExchangeException` is thrown with the cause message `_"That do not work"_`.
@@ -96,6 +118,28 @@ XML::
         </otherwise>
     </choice>
 </route>
+----
+
+YAML::
++
+[source,yaml]
+----
+- route:
+    from:
+      uri: direct:start
+      steps:
+        - choice:
+            when:
+              - expression:
+                  simple:
+                    expression: "${body} contains 'error'"
+                steps:
+                  - rollback:
+                      markRollbackOnly: "true"
+            otherwise:
+              steps:
+                - to:
+                    uri: direct:continue
 ----
 ====
 
