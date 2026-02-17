@@ -17,6 +17,7 @@
 package org.apache.camel.main.stub;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -53,6 +54,7 @@ public class StubBeanRepository implements BeanRepository {
     private final AggregationStrategy service5 = new GroupedBodyAggregationStrategy();
     private final AggregateController service6 = new DefaultAggregateController();
     private final LoadBalancer service7 = new RoundRobinLoadBalancer();
+    private final Comparator<?> service8 = (o1, o2) -> 0;
 
     private final String stubPattern;
 
@@ -120,6 +122,9 @@ public class StubBeanRepository implements BeanRepository {
         }
         if (LoadBalancer.class.isAssignableFrom(type)) {
             return (T) service7;
+        }
+        if (Comparator.class.isAssignableFrom(type)) {
+            return (T) service8;
         }
         if (Logger.class.isAssignableFrom(type)) {
             return (T) LOG;
