@@ -26,6 +26,7 @@ import org.apache.camel.builder.ExpressionBuilder;
 import org.apache.camel.builder.PredicateBuilder;
 import org.apache.camel.model.BeanDefinition;
 import org.apache.camel.model.KameletDefinition;
+import org.apache.camel.model.ScriptDefinition;
 import org.apache.camel.model.ThrowExceptionDefinition;
 import org.apache.camel.model.language.MethodCallExpression;
 import org.apache.camel.processor.DisabledProcessor;
@@ -126,6 +127,20 @@ public class StubEipReifier {
                 return fac.createProcessor(camelContext, definitionName, args);
             }
         });
+
+        // stub programming language scripts
+        ProcessorReifier.registerReifier(ScriptDefinition.class,
+                (route, processorDefinition) -> {
+                    if (processorDefinition instanceof ScriptDefinition sd) {
+                        return new ProcessorReifier<>(route, sd) {
+                            @Override
+                            public Processor createProcessor() throws Exception {
+                                return new DisabledProcessor();
+                            }
+                        };
+                    }
+                    return null;
+                });
     }
 
 }
