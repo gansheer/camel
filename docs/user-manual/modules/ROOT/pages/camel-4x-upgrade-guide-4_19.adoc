@@ -18,6 +18,8 @@ See the xref:camel-upgrade-recipes-tool.adoc[documentation] page for details.
 The WireTap EIP has removed the `pattern` option from its model (not in use) as wiretap always
 uses `InOnly` pattern.
 
+Removed 2 deprecated methods in Java DSL for `throttler` EIP.
+
 === camel-yaml-io / camel-xml-io
 
 When dumping routes in YAML or XML format via `camel-yaml-io` or `camel-xml-io` then the structure of routes
