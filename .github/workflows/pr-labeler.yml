@@ -50,10 +50,11 @@ jobs:
                archive_format: 'zip',
             });
             var fs = require('fs');
-            fs.writeFileSync('${{github.workspace}}/pr.zip', Buffer.from(download.data));
+            fs.writeFileSync('${{github.workspace}}/pr-id.zip', Buffer.from(download.data));
       - run: unzip pr-id.zip
 
-      - name: 'Excract PR id'
+      - name: 'Exctract PR id'
+        id: pr
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
