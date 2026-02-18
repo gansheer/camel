@@ -26,4 +26,4 @@ jobs:
       github.repository == 'apache/camel'
     steps:
       - name: Store PR id number
-        uses: actions/pr-id
+        uses: ./.github/actions/pr-id
