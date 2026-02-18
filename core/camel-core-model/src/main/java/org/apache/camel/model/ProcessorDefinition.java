@@ -1423,10 +1423,10 @@ public abstract class ProcessorDefinition<Type extends ProcessorDefinition<Type>
      * Creates a validation expression which only if it is <tt>true</tt> then the exchange is forwarded to the
      * destination. Otherwise a {@link org.apache.camel.support.processor.PredicateValidationException} is thrown.
      *
-     * @param  expression the expression
+     * @param  expression the predicate
      * @return            the builder
      */
-    public Type validate(@AsPredicate Expression expression) {
+    public Type validate(@AsPredicate ExpressionDefinition expression) {
         ValidateDefinition answer = new ValidateDefinition(expression);
         addOutput(answer);
         return asType();
