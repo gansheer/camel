@@ -28,6 +28,7 @@ import org.apache.camel.model.BeanDefinition;
 import org.apache.camel.model.KameletDefinition;
 import org.apache.camel.model.ScriptDefinition;
 import org.apache.camel.model.ThrowExceptionDefinition;
+import org.apache.camel.model.TransformDataTypeDefinition;
 import org.apache.camel.model.language.MethodCallExpression;
 import org.apache.camel.processor.DisabledProcessor;
 import org.apache.camel.reifier.ProcessorReifier;
@@ -133,6 +134,19 @@ public class StubEipReifier {
                 (route, processorDefinition) -> {
                     if (processorDefinition instanceof ScriptDefinition sd) {
                         return new ProcessorReifier<>(route, sd) {
+                            @Override
+                            public Processor createProcessor() throws Exception {
+                                return new DisabledProcessor();
+                            }
+                        };
+                    }
+                    return null;
+                });
+
+        ProcessorReifier.registerReifier(TransformDataTypeDefinition.class,
+                (route, processorDefinition) -> {
+                    if (processorDefinition instanceof TransformDataTypeDefinition td) {
+                        return new ProcessorReifier<>(route, td) {
                             @Override
                             public Processor createProcessor() throws Exception {
                                 return new DisabledProcessor();

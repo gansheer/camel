@@ -2898,7 +2898,7 @@ public abstract class ProcessorDefinition<Type extends ProcessorDefinition<Type>
      * @return        the builder
      */
     public Type transformDataType(DataType toType) {
-        TransformDataTypeDefinition answer = new TransformDataTypeDefinition(DataType.ANY, toType);
+        TransformDataTypeDefinition answer = new TransformDataTypeDefinition(null, toType);
         addOutput(answer);
         return asType();
     }
