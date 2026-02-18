@@ -104,3 +104,7 @@ using Java code:
 Exchange exchange = ...
 exchange.setRouteStop(true);
 ----
+
+== See Also
+
+See also the related xref:throwException-eip.adoc[Throw Exception] EIP.
