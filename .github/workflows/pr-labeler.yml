@@ -37,11 +37,14 @@ jobs:
         id: pr
         with:
           script: |
-            const { data } = await github.rest.checks.listPullRequestsAssociatedWithCheckSuite({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              check_suite_id: context.payload.workflow_run.check_suite_id
-            });
+            const response = await github.request(
+              "GET /repos/{owner}/{repo}/check-suites/{check_suite_id}/pull-requests",
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                check_suite_id: context.payload.workflow_run.check_suite_id
+              }
+            );
             return data[0]?.number;
     
       - name: Label changes scope
