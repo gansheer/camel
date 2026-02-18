@@ -25,5 +25,10 @@ jobs:
     if: >
       github.repository == 'apache/camel'
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          submodules: recursive    
       - name: Store PR id number
         uses: ./.github/actions/pr-id
