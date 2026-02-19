@@ -36,8 +36,10 @@ import org.apache.camel.spi.AggregationRepository;
 import org.apache.camel.spi.BeanRepository;
 import org.apache.camel.spi.ClaimCheckRepository;
 import org.apache.camel.spi.IdempotentRepository;
+import org.apache.camel.spi.RoutePolicy;
 import org.apache.camel.spi.StateRepository;
 import org.apache.camel.support.PatternHelper;
+import org.apache.camel.support.RoutePolicySupport;
 import org.apache.camel.support.processor.idempotent.MemoryIdempotentRepository;
 import org.apache.camel.support.processor.state.MemoryStateRepository;
 import org.slf4j.Logger;
@@ -55,6 +57,8 @@ public class StubBeanRepository implements BeanRepository {
     private final AggregateController service6 = new DefaultAggregateController();
     private final LoadBalancer service7 = new RoundRobinLoadBalancer();
     private final Comparator<?> service8 = (o1, o2) -> 0;
+    private final RoutePolicy service9 = new RoutePolicySupport() {
+    };
 
     private final String stubPattern;
 
@@ -125,6 +129,9 @@ public class StubBeanRepository implements BeanRepository {
         }
         if (Comparator.class.isAssignableFrom(type)) {
             return (T) service8;
+        }
+        if (RoutePolicy.class.isAssignableFrom(type)) {
+            return (T) service9;
         }
         if (Logger.class.isAssignableFrom(type)) {
             return (T) LOG;

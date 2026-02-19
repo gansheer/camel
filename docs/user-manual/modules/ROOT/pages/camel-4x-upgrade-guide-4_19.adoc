@@ -22,6 +22,9 @@ Removed 2 deprecated methods in Java DSL for `throttler` EIP.
 
 === camel-yaml-io / camel-xml-io
 
+In the YAML DSL we have renamed `routePolicy` to `routePolicyRef` on the `route` node,
+as that is the correct name.
+
 When dumping routes in YAML or XML format via `camel-yaml-io` or `camel-xml-io` then the structure of routes
 and all the EIP options now respect the intended order in the model.
 
