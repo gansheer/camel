@@ -73,14 +73,13 @@ jobs:
               repo: context.repo.repo,
               issue_number: ${{ steps.pr.outputs.id }},
               body: `:star2: Thank you for your contribution to the Apache Camel project! :star2:
-                :robot: CI automation will test this PR automatically.
+            :robot: CI automation will test this PR automatically.
 
-                :camel: Apache Camel Committers, please review the following items:
+            :camel: Apache Camel Committers, please review the following items:
 
-                * First-time contributors **require MANUAL approval** for the GitHub Actions to run
-                * You can use the command \`/component-test (camel-)component-name1 (camel-)component-name2..\` to request a test from the test bot.
-                * You can label PRs using \`build-all\`, \`build-dependents\`, \`skip-tests\` and \`test-dependents\` to fine-tune the checks executed by this PR.
-                * Build and test logs are available in the Summary page. **Only** [Apache Camel committers](https://camel.apache.org/community/team/#committers) have access to the summary.
-                * :warning: Be careful when sharing logs. Review their contents before sharing them publicly.
-                `
+            * First-time contributors **require MANUAL approval** for the GitHub Actions to run
+            * You can use the command \`/component-test (camel-)component-name1 (camel-)component-name2..\` to request a test from the test bot.
+            * You can label PRs using \`build-all\`, \`build-dependents\`, \`skip-tests\` and \`test-dependents\` to fine-tune the checks executed by this PR.
+            * Build and test logs are available in the Summary page. **Only** [Apache Camel committers](https://camel.apache.org/community/team/#committers) have access to the summary.
+            * :warning: Be careful when sharing logs. Review their contents before sharing them publicly.`
             })
