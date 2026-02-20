@@ -1220,6 +1220,14 @@ To remove a plugin from the current Camel JBang command line tooling, you can us
 camel plugin delete <plugin-name>
 ----
 
+==== Building custom plugins
+
+It is possible to build custom Camel JBang plugins. We suggest to take a look at one of the https://github.com/apache/camel/tree/main/dsl/camel-jbang[existing plugins],
+to see how that is done.
+
+IMPORTANT: The name of the plugin Maven **artifactId** must start with `camel-jbang-plugin-`. For example if the plugin is named `cheese`, then
+the maven artifact must be named `camel-jbang-plugin-cheese`.
+
 === Running Pipes
 
 Camel also supports running pipes, which represent Kubernetes custom resources following a specific CRD format (Kubernetes Custom Resource Definitions).
