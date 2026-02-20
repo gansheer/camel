@@ -16,9 +16,6 @@
  */
 package org.apache.camel.component.huggingface;
 
-import java.io.IOException;
-import java.nio.file.Paths;
-
 import ai.djl.modality.Classifications;
 import ai.djl.modality.audio.Audio;
 import ai.djl.modality.audio.AudioFactory;
@@ -26,6 +23,7 @@ import ai.djl.modality.nlp.qa.QAInput;
 import org.apache.camel.CamelContext;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.test.junit5.CamelTestSupport;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Tags;
 import org.junit.jupiter.api.Test;
@@ -34,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+@Disabled("CI doesn't have python env")
 @Tags({ @Tag("slow") })
 public class HuggingFaceIT extends CamelTestSupport {
 
@@ -110,8 +109,8 @@ public class HuggingFaceIT extends CamelTestSupport {
     }
 
     @Test
-    public void testAutomaticSpeechRecognition() throws IOException {
-        Audio audio = AudioFactory.newInstance().fromFile(Paths.get("generated_audio.wav"));
+    public void testAutomaticSpeechRecognition() throws Exception {
+        Audio audio = AudioFactory.newInstance().fromUrl(getClass().getClassLoader().getResource("generated_audio.wav"));
         template.sendBody("direct:start-asr", audio);
         String output = getMockEndpoint("mock:result").getReceivedExchanges().get(0).getMessage().getBody(String.class);
         assertTrue(output.contains("Hello world."));
