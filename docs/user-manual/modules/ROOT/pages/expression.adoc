@@ -10,7 +10,8 @@ To support dynamic rules Camel supports pluggable
 https://www.javadoc.io/doc/org.apache.camel/camel-api/current/org/apache/camel/Expression.html[Expression]
 strategies using a variety of different xref:components:languages:index.adoc[Languages].
 
-== Expression API
+NOTE: The xref:components:languages:simple-language.adoc[Simple] is often used as predicates and expressions
+with the Camel EIPs.
 
 If you are outside the DSL and want to create your own
 expressions you can either implement the
@@ -19,7 +20,7 @@ interface], reuse one of the other builders or try the
 https://www.javadoc.io/doc/org.apache.camel/camel-support/current/org/apache/camel/support/builder/ExpressionBuilder.html[ExpressionBuilder
 class].
 
-=== Expression
+== Expression API
 
 The API for a Camel Expression is defined in the
 `org.apache.camel.Expression` interface as shown:
@@ -38,3 +39,5 @@ public interface Expression {
 }
 ----
 
+A `Expression` is being evaluated to an Object value. This makes expressions so
+powerful as this can be used for functions, data mapping, templating, and for low-code users.
