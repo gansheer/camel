@@ -7446,6 +7446,9 @@
               "$ref" : "#/items/definitions/org.apache.camel.model.BeanFactoryDefinition"
             }
           },
+          "group" : {
+            "type" : "string"
+          },
           "parameters" : {
             "type" : "array",
             "items" : {
