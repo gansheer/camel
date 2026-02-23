@@ -1851,20 +1851,6 @@ public interface ComponentsBuilderFactory {
         return GooglePubsubComponentBuilderFactory.googlePubsub();
     }
     /**
-     * Google PubSub Lite (camel-google-pubsub-lite)
-     * Send and receive messages to/from Google Cloud Platform PubSub Lite
-     * Service.
-     * 
-     * Category: cloud,messaging
-     * Since: 4.6
-     * Maven coordinates: org.apache.camel:camel-google-pubsub-lite
-     * 
-     * @return the dsl builder
-     */
-    static GooglePubsubLiteComponentBuilderFactory.GooglePubsubLiteComponentBuilder googlePubsubLite() {
-        return GooglePubsubLiteComponentBuilderFactory.googlePubsubLite();
-    }
-    /**
      * Google Secret Manager (camel-google-secret-manager)
      * Manage Google Secret Manager Secrets
      * 
