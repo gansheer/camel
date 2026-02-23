@@ -150,49 +150,37 @@ YAML::
 ----
 ====
 
-== Performing Tasks
+== Managing route group in Java
 
-The camel API allows to retrieve all routes of a group and then perform various tasks. 
+The Java API allows to retrieve all routes for a group and perform various tasks.
 
-Here is an example to suspend all routes of a group:
+Here is an example to suspend all routes:
 
-[source, java]
+[source,java]
 ----
-java
 List<Route> routes = context.getRoutesByGroup("order");
 
 for (Route route : routes) {
-    System.out.println("Suspend routeId=" + route.getId() + " for group=" + route.getGroup());
+    System.out.println("Suspending routeId=" + route.getId() + " for group=" + route.getGroup());
     route.getRouteController().suspendRoute(route.getId());
 }
 ----
 
-
-== Monitoring
+== Monitoring Route Groups
 
 Camel has optional support for xref:jmx.adoc[JMX management]. This includes management of groups.
 
-To get all failed changes for a group:
+The following code will get the JMX MBean `ManagedRouteGroupMBean` for the route group with name `order`.
+Using this MBean you can get metrics, and also operations to start and stop all routes in this group.
 
-[source, java]
+For example to get the total number of `Exchange`(s) that has failed within this group:
+
+[source,java]
 ----
 ManagedCamelContext managedContext = context.getCamelContextExtension().getContextPlugin(ManagedCamelContext.class);
 ManagedRouteGroupMBean managedRouteGroup = managedContext.getManagedRouteGroup("order");
 
-if(managedRouteGroup!=null){
+if (managedRouteGroup != null) {
     System.out.println("Group order has " + managedRouteGroup.getExchangesFailed() + " failed exchanges");
-}
-----
-
-To get all failed changes for every route in a group:
-
-[source, java]
-----
-ManagedCamelContext managedContext = context.getCamelContextExtension().getContextPlugin(ManagedCamelContext.class);
-
-List<ManagedRouteMBean> routes = managedContext.getManagedRoutesByGroup(flowId);
-
-for (ManagedRouteMBean route : routes) {
-	System.out.println("RouteId=" + route.getRouteId() + " has " + route.getExchangesFailed() + " failed exchanges");
 }
 ----
