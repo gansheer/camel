@@ -101,3 +101,8 @@ For example `id` is always first, and the following attributes are ordered so th
 commonly used at in the top. EIPs such as `circuitBreaker` now has `onFallback` last.
 
 This order is also the same order that UI builders like Camel Karavan and Kaoto do as well.
+
+=== camel-mail
+
+When configured a custom `IdempotentRepository` on `camel-mail` endpoint, then Camel will now auto-start
+the bean which is similar to what `camel-file` do as well.
