@@ -23,13 +23,19 @@ import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.test.junit6.CamelTestSupport;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Disabled("CAMEL-10321: Set host, username and password test asterisk consumer.")
+/**
+ * Integration test for AsteriskConsumer. Requires a running Asterisk PBX server with proper credentials. To run: set
+ * hostname, username and password, then remove @Disabled annotation.
+ */
+@Tag("integration")
+@Disabled("Requires real Asterisk PBX server. Set hostname, username and password to enable.")
 public class AsteriskConsumerTest extends CamelTestSupport {
     private static final Logger LOG = LoggerFactory.getLogger(AsteriskConsumerTest.class);
 

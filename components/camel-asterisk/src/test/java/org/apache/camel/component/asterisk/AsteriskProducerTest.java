@@ -22,9 +22,15 @@ import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.mock.MockEndpoint;
 import org.apache.camel.test.junit6.CamelTestSupport;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-@Disabled("CAMEL-10321: Set host, username and password test asterisk producer.")
+/**
+ * Integration test for AsteriskProducer. Requires a running Asterisk PBX server with proper credentials. To run: set
+ * hostname, username and password, then remove @Disabled annotation.
+ */
+@Tag("integration")
+@Disabled("Requires real Asterisk PBX server. Set hostname, username and password to enable.")
 public class AsteriskProducerTest extends CamelTestSupport {
 
     private String hostname = "192.168.0.254";
@@ -33,7 +39,7 @@ public class AsteriskProducerTest extends CamelTestSupport {
     private String action = AsteriskAction.EXTENSION_STATE.name();
 
     @Test
-    void testSnmpProducer() throws Exception {
+    void testAsteriskProducer() throws Exception {
         template.sendBody("direct:in", "");
 
         MockEndpoint mock = getMockEndpoint("mock:result");
