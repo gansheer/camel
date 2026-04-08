@@ -35,10 +35,6 @@ inputs:
     description: 'The GitHub repository name (example, apache/camel)'
     required: false
     default: 'apache/camel'
-  artifact-upload-suffix:
-    description: 'Suffix for artifacts stored'
-    required: false
-    default: ''
 runs:
   using: "composite"
   steps:
@@ -54,9 +50,3 @@ runs:
         GITHUB_REPO: ${{ inputs.github-repo }}
       shell: bash
       run: ${{ github.action_path }}/incremental-build.sh ${{ steps.install-mvnd.outputs.mvnd-dir }}/mvnd $MODE $PR_ID $GITHUB_REPO
-    - name: archive logs
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-      if: always()
-      with:
-        name: incremental-${{ inputs.mode }}-${{ inputs.artifact-upload-suffix }}.log
-        path: incremental-${{ inputs.mode }}.log
