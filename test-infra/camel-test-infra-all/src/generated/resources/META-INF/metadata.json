@@ -87,7 +87,7 @@
   "groupId" : "org.apache.camel",
   "artifactId" : "camel-test-infra-redis",
   "version" : "4.21.0-SNAPSHOT",
-  "serviceVersion" : "7.4.9-alpine"
+  "serviceVersion" : "7.4.10-alpine"
 }, {
   "service" : "org.apache.camel.test.infra.elasticsearch.services.ElasticSearchInfraService",
   "description" : "Elasticsearch is a distributed search and analytics engine",
