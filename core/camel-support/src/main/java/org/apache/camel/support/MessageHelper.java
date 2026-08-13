@@ -352,6 +352,21 @@ public final class MessageHelper {
             }
         }
 
+        // a WrappedFile may hold an InputStream body (e.g. SFTP streamDownload) that would be
+        // irreversibly drained by type conversion — apply stream guards to the inner body
+        if (obj instanceof WrappedFile<?> wrappedFile) {
+            Object fileBody = wrappedFile.getBody();
+            if (fileBody instanceof InputStream && !(fileBody instanceof StreamCache)) {
+                if (!allowStreams) {
+                    return "[Body is file based: " + obj + "]";
+                }
+                InputStream fileIs = (InputStream) fileBody;
+                if (!fileIs.markSupported()) {
+                    return "[Body is file based: " + obj + "]";
+                }
+            }
+        }
+
         if (!allowStreams) {
             boolean allow = allowCachedStreams && obj instanceof StreamCache;
             if (!allow) {
