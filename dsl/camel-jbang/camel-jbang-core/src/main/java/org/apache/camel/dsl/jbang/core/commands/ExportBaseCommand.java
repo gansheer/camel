@@ -421,9 +421,17 @@ public abstract class ExportBaseCommand extends CamelCommand {
             int i = 1;
             for (String repo : repos.split(",")) {
                 Map<String, Object> r = new HashMap<>();
-                r.put("id", "custom" + i++);
-                r.put("url", repo);
-                r.put("isSnapshot", repo.contains("snapshots"));
+                // support id=url format (used by camel.extra.repos)
+                int eq = repo.indexOf('=');
+                if (eq > 0 && repo.indexOf('/') > eq) {
+                    r.put("id", repo.substring(0, eq));
+                    r.put("url", repo.substring(eq + 1));
+                } else {
+                    r.put("id", "custom" + i++);
+                    r.put("url", repo);
+                }
+                String url = (String) r.get("url");
+                r.put("isSnapshot", url.contains("snapshots"));
                 result.add(r);
             }
         }
@@ -1267,6 +1275,10 @@ public abstract class ExportBaseCommand extends CamelCommand {
         Set<String> answer = new LinkedHashSet<>();
 
         String propRepositories = prop.getProperty(REPOS);
+        if (propRepositories == null) {
+            // fallback to system property
+            propRepositories = System.getProperty(REPOS);
+        }
         if (propRepositories != null) {
             answer.add(propRepositories);
         }
@@ -1287,6 +1299,16 @@ public abstract class ExportBaseCommand extends CamelCommand {
 
         if (mavenResolver.repos() != null) {
             Collections.addAll(answer, this.mavenResolver.repos().split(","));
+        }
+
+        // include extra repos from system property
+        String extraRepos = System.getProperty("camel.extra.repos");
+        if (extraRepos != null && !extraRepos.isBlank()) {
+            for (String r : extraRepos.split("\\s*,\\s*")) {
+                if (!r.isBlank()) {
+                    answer.add(r);
+                }
+            }
         }
 
         return answer.stream()
