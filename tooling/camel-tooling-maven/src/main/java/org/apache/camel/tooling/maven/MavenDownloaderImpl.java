@@ -28,7 +28,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -85,8 +84,8 @@ public class MavenDownloaderImpl extends ServiceSupport implements MavenDownload
     public static final String MAVEN_CENTRAL_REPO = "https://repo1.maven.org/maven2";
     public static final String APACHE_SNAPSHOT_REPO = "https://repository.apache.org/snapshots";
 
-    private static final String EXTRA_DEFAULT_REPOS_DEFAULT_VALUE = "camel.default.extra.repos.default.value";
-    private static final String EXTRA_DEFAULT_REPOS_PROPERTY = "camel.extra.repos";
+    private static final String EXTRA_DEFAULT_REPOS_DEFAULT_VALUE = RepositoryHelper.EXTRA_REPOS_DEFAULT_VALUE_PROPERTY;
+    private static final String EXTRA_DEFAULT_REPOS_PROPERTY = RepositoryHelper.EXTRA_REPOS_PROPERTY;
 
     private static final RepositoryPolicy POLICY_DEFAULT = new RepositoryPolicy(
             true, RepositoryPolicy.UPDATE_POLICY_NEVER, RepositoryPolicy.CHECKSUM_POLICY_WARN);
@@ -455,78 +454,44 @@ public class MavenDownloaderImpl extends ServiceSupport implements MavenDownload
     }
 
     /**
-     * Helper method to configure custom repositories from URLs or id=url pairs. Translates repository specifications to
-     * RemoteRepository instances.
-     * <p>
-     * Repository format: either a plain URL (e.g., {@code https://repo.example.com/maven}) or an {@code id=url} pair
-     * (e.g., {@code my-repo=https://repo.example.com/maven}). Using the {@code id=url} format preserves the repository
-     * ID, which is required for settings.xml server authentication matching.
+     * Configure custom repositories from URLs or id=url pairs via {@link RepositoryHelper}.
      */
     private void configureRepositories(List<RemoteRepository> repositories, Set<String> urls) {
-        urls.forEach(repo -> {
+        configureRepositories(repositories, RepositoryHelper.parseRepositories(String.join(",", urls), repositoryResolver));
+    }
+
+    private void configureRepositories(List<RemoteRepository> repositories, List<RepositoryHelper.RepositorySpec> specs) {
+        for (RepositoryHelper.RepositorySpec spec : specs) {
             try {
-                repo = repositoryResolver.resolveRepository(repo);
-                if (repo != null && !repo.isBlank()) {
-                    // Support id=url format for repository ID preservation (needed for settings.xml auth)
-                    String id;
-                    String repoUrl;
-                    int eqIdx = repo.indexOf('=');
-                    if (eqIdx > 0 && eqIdx < repo.length() - 1 && !repo.startsWith("http")) {
-                        id = repo.substring(0, eqIdx);
-                        repoUrl = repo.substring(eqIdx + 1);
-                    } else {
-                        id = "custom" + customRepositoryCounter.getAndIncrement();
-                        repoUrl = repo;
-                    }
-                    URL url = URI.create(repoUrl).toURL();
-                    if (mavenCentralEnabled && url.getHost().equals("repo1.maven.org")) {
-                        // Maven Central is always used, so skip it
-                        return;
-                    }
-                    if (mavenApacheSnapshotEnabled && url.getHost().equals("repository.apache.org")
-                            && url.getPath().contains("/snapshots")) {
-                        // Apache Snapshots added, so we'll use our own definition of this repository
-                        repositories.add(apacheSnapshotsRepository);
-                        apacheSnapshotsIncluded = true;
-                    } else {
-                        // both snapshots and releases allowed for custom repos
-                        repositories.add(new RemoteRepository.Builder(id, "default", repoUrl)
-                                .setReleasePolicy(defaultPolicy)
-                                .setSnapshotPolicy(defaultPolicy)
-                                .build());
-                    }
+                URL url = URI.create(spec.url()).toURL();
+                if (mavenCentralEnabled && url.getHost().equals("repo1.maven.org")) {
+                    continue;
+                }
+                if (mavenApacheSnapshotEnabled && url.getHost().equals("repository.apache.org")
+                        && url.getPath().contains("/snapshots")) {
+                    repositories.add(apacheSnapshotsRepository);
+                    apacheSnapshotsIncluded = true;
+                } else {
+                    repositories.add(new RemoteRepository.Builder(spec.id(), "default", spec.url())
+                            .setReleasePolicy(defaultPolicy)
+                            .setSnapshotPolicy(defaultPolicy)
+                            .build());
                 }
             } catch (MalformedURLException e) {
-                LOG.warn("Cannot use {} URL: {}. Skipping.", repo, e.getMessage(), e);
+                LOG.warn("Cannot use {} URL: {}. Skipping.", spec.url(), e.getMessage(), e);
             }
-        });
+        }
     }
 
     /**
-     * Loads extra default Maven repositories from classpath properties files and system property.
-     * <p>
-     * Two complementary mechanisms:
-     * <ul>
-     * <li>System property: {@value #EXTRA_DEFAULT_REPOS_PROPERTY or EXTRA_DEFAULT_REPOS_DEFAULT_VALUE} (comma-separated
-     * id=url pairs)</li>
-     * </ul>
-     * Both are additive and merged. Upstream ships no properties file (no-op). Product builds can add the file or use
-     * the system property.
+     * Loads extra default Maven repositories from system properties {@code camel.extra.repos} and
+     * {@code camel.default.extra.repos.default.value} via {@link RepositoryHelper}.
      */
     private void loadExtraDefaultRepositories(List<RemoteRepository> repositories) {
-        // Load from system property (comma-separated id=url pairs)
-        String sysProp
-                = System.getProperty(EXTRA_DEFAULT_REPOS_PROPERTY, System.getProperty(EXTRA_DEFAULT_REPOS_DEFAULT_VALUE));
-        if (sysProp != null && !sysProp.isBlank()) {
-            Set<String> repoSpecs = Arrays.stream(sysProp.split("\\s*,\\s*"))
-                    .filter(s -> !s.isBlank())
-                    .collect(Collectors.toCollection(LinkedHashSet::new));
-
-            if (!repoSpecs.isEmpty()) {
-                LOG.debug("Loaded extra default repositories from system property: {}", sysProp);
-                configureRepositories(repositories, repoSpecs);
-                LOG.debug("Configured {} extra default Maven repositories", repoSpecs.size());
-            }
+        List<RepositoryHelper.RepositorySpec> specs = RepositoryHelper.loadExtraRepositories(repositoryResolver);
+        if (!specs.isEmpty()) {
+            LOG.debug("Loaded {} extra default Maven repositories from system property", specs.size());
+            configureRepositories(repositories, specs);
         }
     }
 

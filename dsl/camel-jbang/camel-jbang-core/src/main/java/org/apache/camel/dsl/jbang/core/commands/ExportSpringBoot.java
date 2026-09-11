@@ -40,6 +40,7 @@ import org.apache.camel.dsl.jbang.core.common.RuntimeUtil;
 import org.apache.camel.dsl.jbang.core.common.TemplateHelper;
 import org.apache.camel.dsl.jbang.core.common.VersionHelper;
 import org.apache.camel.tooling.maven.MavenGav;
+import org.apache.camel.tooling.maven.RepositoryHelper;
 import org.apache.camel.tooling.model.ArtifactModel;
 import org.apache.camel.util.CamelCaseOrderedProperties;
 import org.apache.camel.util.IOHelper;
@@ -365,14 +366,14 @@ class ExportSpringBoot extends Export {
      * Legacy method for backward compatibility with catalog-provided templates.
      */
     private static String legacyMavenRepositoriesAsPomXml(String repos) {
+        List<RepositoryHelper.RepositorySpec> specs = RepositoryHelper.parseRepositories(repos);
         StringBuilder sb = new StringBuilder();
-        int i = 1;
         sb.append("    <repositories>\n");
-        for (String repo : repos.split(",")) {
+        for (RepositoryHelper.RepositorySpec spec : specs) {
             sb.append("        <repository>\n");
-            sb.append("            <id>custom").append(i++).append("</id>\n");
-            sb.append("            <url>").append(repo).append("</url>\n");
-            if (repo.contains("snapshots")) {
+            sb.append("            <id>").append(spec.id()).append("</id>\n");
+            sb.append("            <url>").append(spec.url()).append("</url>\n");
+            if (spec.snapshot()) {
                 sb.append("            <releases>\n");
                 sb.append("                <enabled>false</enabled>\n");
                 sb.append("            </releases>\n");
@@ -384,11 +385,11 @@ class ExportSpringBoot extends Export {
         }
         sb.append("    </repositories>\n");
         sb.append("    <pluginRepositories>\n");
-        for (String repo : repos.split(",")) {
+        for (RepositoryHelper.RepositorySpec spec : specs) {
             sb.append("        <pluginRepository>\n");
-            sb.append("            <id>custom").append(i++).append("</id>\n");
-            sb.append("            <url>").append(repo).append("</url>\n");
-            if (repo.contains("snapshots")) {
+            sb.append("            <id>plugin-").append(spec.id()).append("</id>\n");
+            sb.append("            <url>").append(spec.url()).append("</url>\n");
+            if (spec.snapshot()) {
                 sb.append("            <releases>\n");
                 sb.append("                <enabled>false</enabled>\n");
                 sb.append("            </releases>\n");
