@@ -1,0 +1,159 @@
+= LangChain4j Content Retriever
+:doctitle: LangChain4j Content Retriever
+:shortname: langchain4j-content-retriever
+:artifactid: camel-langchain4j-core
+:description: Use Camel routes as LangChain4j content retrievers for retrieval-augmented generation
+:since: 4.24
+:supportlevel: Preview
+:tabs-sync-option:
+
+*Since Camel {since}*
+
+The `CamelContentRetriever` turns a Camel endpoint — a route, a Kamelet or a component — into a LangChain4j
+`ContentRetriever`, so that https://docs.langchain4j.dev/tutorials/rag[retrieval-augmented generation] can retrieve
+content from any system Camel can reach: a REST API, a database, a JMS queue, an LDAP server, a legacy mainframe.
+
+Maven users will need to add the following dependency to their `pom.xml`
+for this component:
+
+[source,xml]
+----
+<dependency>
+    <groupId>org.apache.camel</groupId>
+    <artifactId>camel-langchain4j-core</artifactId>
+    <version>x.x.x</version>
+    <!-- use the same version as your Camel core version -->
+</dependency>
+----
+
+== Usage
+
+Create one retriever per content source, register it with the `CamelContext` and wire it into a LangChain4j
+`RetrievalAugmentor`:
+
+[source,java]
+----
+CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:orders")
+        .setTimeout(Duration.ofSeconds(2))
+        .setOnError(OnError.EMPTY)
+        .setMaxResults(5);
+camelContext.addService(orders);
+
+RetrievalAugmentor augmentor = DefaultRetrievalAugmentor.builder()
+        .queryRouter(new DefaultQueryRouter(orders, knowledgeBase))
+        .contentInjector(DefaultContentInjector.builder()
+                .metadataKeysToInclude(List.of("camel_retrieval_source"))
+                .build())
+        .build();
+----
+
+The first constructor argument is the source name, the second the endpoint URI. The name identifies the source in
+logs and in the `camel_retrieval_source` segment metadata.
+
+IMPORTANT: Register every retriever with `CamelContext.addService(...)`, after configuring it: the settings cannot
+change once it has started. A retriever that is only `start()`ed but not registered still works, but is not stopped
+with the context: call `stop()` yourself.
+
+== What the Route Receives
+
+The retriever sends an InOut exchange to the endpoint: the query text is the message body, and the query metadata
+is set as exchange properties:
+
+[width="100%",cols="3,3,4",options="header"]
+|===
+|Property |Source |Value
+
+|`langchain4j.query.userMessage` |query metadata |text of the original user message, when it has a single text
+|`langchain4j.query.chatMemoryId` |query metadata |chat memory id of the AI Service invocation
+|`langchain4j.query.param.<key>` |invocation parameters |one property per AI Service invocation parameter
+|===
+
+The properties are the only identity a route receives: the original user message is often rewritten by a query
+transformer, so routes that need it (for example to scope a search to the caller's data) should read
+`langchain4j.query.userMessage` or an invocation parameter, not the body. A route with a fixed query in mind reads
+the body — the rewritten query.
+
+== What the Route Returns
+
+The response body becomes the content list, one `Content` per element:
+
+[width="100%",cols="3,7",options="header"]
+|===
+|Body |Result
+
+|`null`, empty collection |no content
+|`String` elements |used as-is
+|`Content` / `TextSegment` elements |used as-is, keeping their metadata
+|`Map` elements |one `key: value` line per entry
+|anything else |converted to `String` with the Camel type converter
+|===
+
+A non-collection body is treated as a single element. Blank elements are skipped.
+
+Every segment gets the metadata key `camel_retrieval_source` with the source name, and `camel_retrieval_document_id`
+when `documentIdKey` is set and the `Map` elements contain that key. Response headers prefixed with
+`langchain4j.metadata.` are copied to the segment metadata with the prefix stripped.
+
+The `camel_retrieval_*` keys never come from response headers. `camel_retrieval_source` is always the source name;
+`camel_retrieval_document_id` may also be set by the route on the `TextSegment` or `Content` elements it returns, for
+example to carry the id of an ingested document for citation.
+
+== Failure and Cost Control
+
+Retrieval runs over a bounded executor owned by the retriever, and `retrieve()` blocks the caller until the route
+answers or the configured `timeout` elapses.
+
+[width="100%",cols="3,3,4",options="header"]
+|===
+|Option |Default |Effect
+
+|`timeout` |none |how long `retrieve()` waits for the route
+|`onError` |`FAIL` |`FAIL` throws a `CamelExecutionException`, `EMPTY` logs a warning and returns no content
+|`maxResults` |unlimited |maximum number of content items this source contributes
+|`maxChars` |unlimited |maximum number of characters this source contributes across all items
+|`concurrency` |2 |number of route calls this retriever runs in parallel
+|`queueCapacity` |64 |number of calls that may wait for a free thread; beyond it the call follows `onError`
+|===
+
+`OnError.EMPTY` makes a source best-effort: a failing or slow source degrades the answer's quality instead of
+failing the whole AI interaction.
+
+When the `timeout` elapses, a call still waiting in the queue is dropped without reaching the route, but a call
+already running keeps running until the route answers, holding its thread: cancelling does not interrupt it. Set
+the component timeouts in the route as well (`requestTimeout`, connection timeouts) so the work itself stops.
+
+== Routing Between Sources
+
+A `LanguageModelQueryRouter` picks the sources relevant to the query from their descriptions:
+
+[source,java]
+----
+CamelContentRetriever orders = new CamelContentRetriever(camelContext, "orders", "direct:orders");
+CamelContentRetriever articles = new CamelContentRetriever(camelContext, "articles", "direct:articles");
+camelContext.addService(orders);
+camelContext.addService(articles);
+
+QueryRouter router = LanguageModelQueryRouter.builder()
+        .chatModel(chatModel)
+        .retrieverToDescription(Map.of(
+                orders, "The customer's recent orders",
+                articles, "Support articles about orders and refunds"))
+        .build();
+
+RetrievalAugmentor augmentor = DefaultRetrievalAugmentor.builder()
+        .queryRouter(router)
+        .contentInjector(new DefaultContentInjector())
+        .build();
+----
+
+With a single query routed to a single source, LangChain4j calls the retriever on the caller thread; with several
+sources or an `ExpandingQueryTransformer` producing several queries, retrieval fans out to the augmentor's
+executor. The retriever works the same either way.
+
+== Security Considerations
+
+- Routes receive identity only through the `langchain4j.query.*` properties. Pass the caller's identity as an AI
+Service invocation parameter and scope every query with it — never trust data that is not scoped this way.
+- Give the retrieval route read-only credentials for the backing system: it answers queries, it does not write.
+- When the route templates the query into an endpoint URI or a statement (SQL, LDAP filter, REST path), prefer
+parameterized APIs and escape the value; the query text comes from an LLM-transformed user message.
