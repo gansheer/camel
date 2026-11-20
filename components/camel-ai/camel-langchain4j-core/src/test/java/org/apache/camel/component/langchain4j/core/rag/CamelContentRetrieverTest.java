@@ -21,7 +21,15 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import dev.langchain4j.data.document.Metadata;
@@ -44,8 +52,12 @@ import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrie
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_USER_MESSAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 
 public class CamelContentRetrieverTest extends CamelTestSupport {
+
+    private final CountDownLatch holdStarted = new CountDownLatch(1);
+    private final CountDownLatch holdRelease = new CountDownLatch(1);
 
     @Override
     protected RouteBuilder createRouteBuilder() {
@@ -71,6 +83,10 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
                 from("direct:other").setBody(constant(List.of(42, new StringBuilder("sb"))));
                 from("direct:three").setBody(constant(List.of("one", "two", "three")));
                 from("direct:slow").delay(400).setBody(constant("late"));
+                from("direct:hold").process(e -> {
+                    holdStarted.countDown();
+                    holdRelease.await(5, TimeUnit.SECONDS);
+                }).setBody(constant("held"));
                 from("direct:headers")
                         .setHeader(LangChain4j.METADATA_PREFIX + "score", constant(0.5d))
                         .setHeader(LangChain4j.METADATA_PREFIX + "flag", constant(true))
@@ -254,6 +270,98 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
         CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
         assertThatThrownBy(() -> retriever.setTimeout(Duration.ZERO)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> retriever.setMaxResults(-2)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    public void invalidPoolSettingsRejected() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        assertThatThrownBy(() -> retriever.setConcurrency(0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> retriever.setQueueCapacity(0)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    public void subMillisecondTimeout() {
+        long start = System.nanoTime();
+        assertThatThrownBy(() -> retrieve("direct:slow", Query.from("q"),
+                r -> r.setTimeout(Duration.ofNanos(100_000))))
+                .isInstanceOf(CamelExecutionException.class)
+                .hasMessageContaining("timed out")
+                .hasRootCauseInstanceOf(TimeoutException.class);
+        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(1));
+    }
+
+    private CamelContentRetriever holdRetriever() {
+        return new CamelContentRetriever(context, "hold", "direct:hold").setConcurrency(1).setQueueCapacity(1);
+    }
+
+    private Future<List<Content>> submitRetrieve(
+            ExecutorService callers, AtomicReference<Thread> caller,
+            CamelContentRetriever retriever, String text) {
+        return callers.submit(() -> {
+            caller.set(Thread.currentThread());
+            return retriever.retrieve(Query.from(text));
+        });
+    }
+
+    // fills the single thread and the single queue slot
+    private Future<List<Content>> holdThreadAndQueue(
+            CamelContentRetriever retriever, ExecutorService callers,
+            AtomicReference<Thread> queuedCaller)
+            throws InterruptedException {
+        submitRetrieve(callers, new AtomicReference<>(), retriever, "a");
+        assertThat(holdStarted.await(5, TimeUnit.SECONDS)).isTrue();
+        Future<List<Content>> queued = submitRetrieve(callers, queuedCaller, retriever, "b");
+        // the second call waits for a free thread only once the queue holds it
+        await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
+            assertThat(queuedCaller.get()).isNotNull();
+            assertThat(queuedCaller.get().getState()).isEqualTo(Thread.State.WAITING);
+        });
+        return queued;
+    }
+
+    @Test
+    public void saturatedExecutorFollowsOnError() throws Exception {
+        CamelContentRetriever retriever = holdRetriever();
+        retriever.start();
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try {
+            Future<List<Content>> queued = holdThreadAndQueue(retriever, callers, new AtomicReference<>());
+
+            assertThatThrownBy(() -> retriever.retrieve(Query.from("c")))
+                    .isInstanceOf(CamelExecutionException.class)
+                    .hasMessageContaining("was rejected")
+                    .hasRootCauseInstanceOf(RejectedExecutionException.class);
+
+            holdRelease.countDown();
+            assertThat(texts(queued.get(5, TimeUnit.SECONDS))).containsExactly("held");
+        } finally {
+            holdRelease.countDown();
+            callers.shutdownNow();
+            retriever.stop();
+        }
+    }
+
+    @Test
+    public void stopCompletesQueuedRetrievals() throws Exception {
+        CamelContentRetriever retriever = holdRetriever();
+        retriever.start();
+        ExecutorService callers = Executors.newFixedThreadPool(2);
+        try {
+            Future<List<Content>> queued = holdThreadAndQueue(retriever, callers, new AtomicReference<>());
+
+            retriever.stop();
+
+            // the exchange that never reached the route is completed by the template and follows on-error
+            assertThatThrownBy(() -> queued.get(5, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .hasRootCauseInstanceOf(RejectedExecutionException.class);
+            assertThatThrownBy(() -> retriever.retrieve(Query.from("c")))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("not started");
+        } finally {
+            holdRelease.countDown();
+            callers.shutdownNow();
+        }
     }
 
     @Test
