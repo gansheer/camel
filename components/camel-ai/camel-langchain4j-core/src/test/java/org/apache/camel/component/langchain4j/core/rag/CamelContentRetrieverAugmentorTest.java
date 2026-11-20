@@ -33,8 +33,10 @@ import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.injector.DefaultContentInjector;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.query.Metadata;
+import dev.langchain4j.rag.query.Query;
 import dev.langchain4j.rag.query.router.DefaultQueryRouter;
 import dev.langchain4j.rag.query.router.LanguageModelQueryRouter;
+import dev.langchain4j.rag.query.transformer.QueryTransformer;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.test.junit6.CamelTestSupport;
 import org.junit.jupiter.api.Test;
@@ -54,8 +56,15 @@ public class CamelContentRetrieverAugmentorTest extends CamelTestSupport {
                         .setBody(simple("Order 1001 of ${exchangeProperty[" + QUERY_PARAM_PREFIX + "customerId]} is delayed"));
                 from("direct:kb")
                         .setBody(constant(List.of("Delayed orders can be cancelled for a full refund")));
+                from("direct:echo").setBody(simple("seen: ${body}"));
             }
         };
+    }
+
+    private CamelContentRetriever retriever(String name, String uri) throws Exception {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, name, uri);
+        context.addService(retriever);
+        return retriever;
     }
 
     private static AugmentationRequest request(String text, String customerId) {
@@ -74,9 +83,9 @@ public class CamelContentRetrieverAugmentorTest extends CamelTestSupport {
     }
 
     @Test
-    public void allSourcesInjected() {
-        ContentRetriever orders = new CamelContentRetriever(context, "orders", "direct:orders");
-        ContentRetriever kb = new CamelContentRetriever(context, "kb", "direct:kb");
+    public void allSourcesInjected() throws Exception {
+        ContentRetriever orders = retriever("orders", "direct:orders");
+        ContentRetriever kb = retriever("kb", "direct:kb");
         RetrievalAugmentor augmentor = DefaultRetrievalAugmentor.builder()
                 .queryRouter(new DefaultQueryRouter(orders, kb))
                 .contentInjector(injector())
@@ -93,9 +102,9 @@ public class CamelContentRetrieverAugmentorTest extends CamelTestSupport {
     }
 
     @Test
-    public void languageModelRouterPicksSource() {
-        ContentRetriever orders = new CamelContentRetriever(context, "orders", "direct:orders");
-        ContentRetriever kb = new CamelContentRetriever(context, "kb", "direct:kb");
+    public void languageModelRouterPicksSource() throws Exception {
+        ContentRetriever orders = retriever("orders", "direct:orders");
+        ContentRetriever kb = retriever("kb", "direct:kb");
         // ids follow map iteration order, so the stub answers with the id whose description matches
         Map<ContentRetriever, String> catalog = Map.of(
                 orders, "The customer's recent orders",
@@ -120,5 +129,24 @@ public class CamelContentRetrieverAugmentorTest extends CamelTestSupport {
 
         assertThat(result.contents()).hasSize(1);
         assertThat(result.contents().get(0).textSegment().metadata().getString(METADATA_SOURCE)).isEqualTo("kb");
+    }
+
+    @Test
+    public void multipleQueriesRunOneSource() throws Exception {
+        ContentRetriever echo = retriever("echo", "direct:echo");
+        // the augmentor fans out to its executor for a single source as soon as there is more than one query
+        QueryTransformer transformer = query -> List.of(
+                Query.from(query.text() + " one"),
+                Query.from(query.text() + " two"));
+        RetrievalAugmentor augmentor = DefaultRetrievalAugmentor.builder()
+                .queryTransformer(transformer)
+                .queryRouter(new DefaultQueryRouter(echo))
+                .contentInjector(injector())
+                .build();
+
+        AugmentationResult result = augmentor.augment(request("where", "c-42"));
+
+        assertThat(result.contents()).extracting(c -> c.textSegment().text())
+                .containsExactlyInAnyOrder("seen: where one", "seen: where two");
     }
 }

@@ -16,10 +16,13 @@
  */
 package org.apache.camel.component.langchain4j.core.rag;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.message.UserMessage;
@@ -66,6 +69,8 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
                         TextSegment.from("seg", Metadata.from("lang", "en")),
                         Content.from("content"))));
                 from("direct:other").setBody(constant(List.of(42, new StringBuilder("sb"))));
+                from("direct:three").setBody(constant(List.of("one", "two", "three")));
+                from("direct:slow").delay(400).setBody(constant("late"));
                 from("direct:headers")
                         .setHeader(LangChain4j.METADATA_PREFIX + "score", constant(0.5d))
                         .setHeader(LangChain4j.METADATA_PREFIX + "flag", constant(true))
@@ -84,7 +89,20 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
     }
 
     private List<Content> retrieve(String uri, Query query) {
-        return new CamelContentRetriever(context, "src", uri).retrieve(query);
+        return retrieve(uri, query, null);
+    }
+
+    private List<Content> retrieve(String uri, Query query, Consumer<CamelContentRetriever> configure) {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", uri);
+        if (configure != null) {
+            configure.accept(retriever);
+        }
+        retriever.start();
+        try {
+            return retriever.retrieve(query);
+        } finally {
+            retriever.stop();
+        }
     }
 
     private static List<String> texts(List<Content> contents) {
@@ -112,10 +130,15 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
     @Test
     public void mapListOneContentPerRow() {
         CamelContentRetriever retriever = new CamelContentRetriever(context, "movies", "direct:maps").setDocumentIdKey("id");
-        List<Content> contents = retriever.retrieve(Query.from("q"));
-        assertThat(texts(contents)).containsExactly("id: 1\ntitle: Inception", "id: 2\ntitle: Heat");
-        assertThat(contents).extracting(c -> c.textSegment().metadata().getInteger(METADATA_DOCUMENT_ID))
-                .containsExactly(1, 2);
+        retriever.start();
+        try {
+            List<Content> contents = retriever.retrieve(Query.from("q"));
+            assertThat(texts(contents)).containsExactly("id: 1\ntitle: Inception", "id: 2\ntitle: Heat");
+            assertThat(contents).extracting(c -> c.textSegment().metadata().getInteger(METADATA_DOCUMENT_ID))
+                    .containsExactly(1, 2);
+        } finally {
+            retriever.stop();
+        }
     }
 
     @Test
@@ -170,12 +193,67 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
     }
 
     @Test
+    public void notStartedIsReported() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        assertThatThrownBy(() -> retriever.retrieve(Query.from("x")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not started");
+    }
+
+    @Test
     public void startStop() {
         CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
         retriever.start();
-        assertThat(texts(retriever.retrieve(Query.from("x")))).containsExactly("found: x");
-        retriever.stop();
-        assertThat(texts(retriever.retrieve(Query.from("y")))).containsExactly("found: y");
+        try {
+            assertThat(texts(retriever.retrieve(Query.from("x")))).containsExactly("found: x");
+        } finally {
+            retriever.stop();
+        }
+        assertThatThrownBy(() -> retriever.retrieve(Query.from("y")))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    public void timeoutFailsByDefault() {
+        assertThatThrownBy(() -> retrieve("direct:slow", Query.from("q"), r -> r.setTimeout(Duration.ofMillis(50))))
+                .isInstanceOf(CamelExecutionException.class)
+                .hasMessageContaining("timed out")
+                .hasRootCauseInstanceOf(TimeoutException.class);
+    }
+
+    @Test
+    public void timeoutReturnsEmptyWithOnErrorEmpty() {
+        assertThat(retrieve("direct:slow", Query.from("q"),
+                r -> r.setTimeout(Duration.ofMillis(50)).setOnError(OnError.EMPTY))).isEmpty();
+    }
+
+    @Test
+    public void routeExceptionFollowsOnError() {
+        assertThat(retrieve("direct:fail", Query.from("q"), r -> r.setOnError(OnError.EMPTY))).isEmpty();
+        assertThatThrownBy(() -> retrieve("direct:fail", Query.from("q"), null))
+                .isInstanceOf(CamelExecutionException.class)
+                .hasRootCauseInstanceOf(IllegalStateException.class)
+                .hasRootCauseMessage("boom");
+    }
+
+    @Test
+    public void maxResultsCapsItems() {
+        assertThat(texts(retrieve("direct:three", Query.from("q"), r -> r.setMaxResults(2))))
+                .containsExactly("one", "two");
+    }
+
+    @Test
+    public void maxCharsTruncatesCombinedText() {
+        // "one" + "two" = 6 characters, so 5 keeps "one" and the first two characters of "two"
+        assertThat(texts(retrieve("direct:three", Query.from("q"), r -> r.setMaxChars(5))))
+                .containsExactly("one", "tw");
+    }
+
+    @Test
+    public void invalidLimitsRejected() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        assertThatThrownBy(() -> retriever.setTimeout(Duration.ZERO)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> retriever.setMaxResults(-2)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
