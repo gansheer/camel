@@ -45,7 +45,7 @@ import org.apache.camel.test.junit6.CamelTestSupport;
 import org.junit.jupiter.api.Test;
 
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.METADATA_SOURCE;
-import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_PARAM_PREFIX;
+import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_PARAMS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class CamelContentRetrieverAugmentorTest extends CamelTestSupport {
@@ -56,7 +56,7 @@ public class CamelContentRetrieverAugmentorTest extends CamelTestSupport {
             @Override
             public void configure() {
                 from("direct:orders")
-                        .setBody(simple("Order 1001 of ${exchangeProperty[" + QUERY_PARAM_PREFIX + "customerId]} is delayed"));
+                        .setBody(simple("Order 1001 of ${exchangeProperty." + QUERY_PARAMS + "[customerId]} is delayed"));
                 from("direct:kb")
                         .setBody(constant(List.of("Delayed orders can be cancelled for a full refund")));
                 from("direct:echo").setBody(simple("seen: ${body}"));

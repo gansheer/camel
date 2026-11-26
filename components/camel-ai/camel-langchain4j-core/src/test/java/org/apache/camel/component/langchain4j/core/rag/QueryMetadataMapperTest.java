@@ -17,6 +17,7 @@
 package org.apache.camel.component.langchain4j.core.rag;
 
 import java.util.List;
+import java.util.Map;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
@@ -33,10 +34,11 @@ import org.apache.camel.support.DefaultExchange;
 import org.apache.camel.test.junit6.CamelTestSupport;
 import org.junit.jupiter.api.Test;
 
-import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_CHAT_MEMORY_ID;
-import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_PARAM_PREFIX;
+import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_MEMORY_ID;
+import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_PARAMS;
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_USER_MESSAGE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class QueryMetadataMapperTest extends CamelTestSupport {
 
@@ -92,10 +94,11 @@ public class QueryMetadataMapperTest extends CamelTestSupport {
                 .invocationContext(InvocationContext.builder().chatMemoryId("mem-1").build())
                 .build();
 
-        assertThat(mapped(metadata).getProperty(QUERY_CHAT_MEMORY_ID, String.class)).isEqualTo("mem-1");
+        assertThat(mapped(metadata).getProperty(QUERY_MEMORY_ID, String.class)).isEqualTo("mem-1");
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     public void invocationParametersAreMapped() {
         InvocationParameters parameters = new InvocationParameters();
         parameters.put("customerId", "c-42");
@@ -107,14 +110,16 @@ public class QueryMetadataMapperTest extends CamelTestSupport {
 
         Exchange exchange = mapped(metadata);
 
-        assertThat(exchange.getProperty(QUERY_PARAM_PREFIX + "customerId", String.class)).isEqualTo("c-42");
-        assertThat(exchange.getProperty(QUERY_PARAM_PREFIX + "locale", String.class)).isEqualTo("fr");
+        Map<String, Object> params = (Map<String, Object>) exchange.getProperty(QUERY_PARAMS, Map.class);
+        assertThat(params).containsOnly(Map.entry("customerId", "c-42"), Map.entry("locale", "fr"));
+        assertThatThrownBy(() -> params.put("customerId", "other"))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
     public void queryWithoutInvocationContextSetsNoParameters() {
         Exchange exchange = mapped(metadata(UserMessage.from("q")));
 
-        assertThat(exchange.getProperties().keySet()).noneMatch(k -> k.startsWith(QUERY_PARAM_PREFIX));
+        assertThat(exchange.getProperty(QUERY_PARAMS)).isNull();
     }
 }

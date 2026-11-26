@@ -44,13 +44,14 @@ import org.apache.camel.CamelExecutionException;
 import org.apache.camel.RuntimeCamelException;
 import org.apache.camel.builder.RouteBuilder;
 import org.apache.camel.component.langchain4j.core.LangChain4j;
+import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.test.junit6.CamelTestSupport;
 import org.junit.jupiter.api.Test;
 
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.METADATA_DOCUMENT_ID;
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.METADATA_SOURCE;
-import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_CHAT_MEMORY_ID;
-import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_PARAM_PREFIX;
+import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_MEMORY_ID;
+import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_PARAMS;
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.QUERY_USER_MESSAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -99,16 +100,21 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
                         .setBody(constant("doc"));
                 from("direct:echoProperties").process(e -> e.getMessage().setBody(Arrays.asList(
                         e.getProperty(QUERY_USER_MESSAGE, String.class),
-                        e.getProperty(QUERY_CHAT_MEMORY_ID, String.class),
-                        e.getProperty(QUERY_PARAM_PREFIX + "customerId", String.class),
+                        e.getProperty(QUERY_MEMORY_ID, String.class),
+                        e.getProperty(QUERY_PARAMS, Map.class) != null
+                                ? (String) e.getProperty(QUERY_PARAMS, Map.class).get("customerId") : null,
                         String.valueOf(e.getMessage().getHeaders().keySet().stream()
-                                .anyMatch(k -> k.startsWith("langchain4j.query."))))));
+                                .anyMatch(k -> k.startsWith("CamelLangChain4jRetriever"))))));
                 from("direct:spoof")
                         .setHeader(LangChain4j.METADATA_PREFIX + METADATA_SOURCE, constant("header spoof"))
                         .setHeader(LangChain4j.METADATA_PREFIX + METADATA_DOCUMENT_ID, constant("header spoof"))
                         .setBody(constant(List.of(
                                 TextSegment.from("row", Metadata.from(METADATA_SOURCE, "segment spoof")))));
                 from("direct:fail").throwException(new IllegalStateException("boom"));
+                from("direct:unconvertible").process(e -> e.getMessage().setBody(List.of(new Unconvertible())));
+                from("direct:vmError").process(e -> {
+                    throw new StackOverflowError("test");
+                });
             }
         };
     }
@@ -299,7 +305,10 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
     public void invalidLimitsRejected() {
         CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
         assertThatThrownBy(() -> retriever.setTimeout(Duration.ZERO)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> retriever.setMaxResults(-2)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> retriever.setMaxResults(-1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> retriever.setMaxChars(-1)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(retriever.getMaxResults()).isZero();
+        assertThat(retriever.getMaxChars()).isZero();
     }
 
     @Test
@@ -311,13 +320,97 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
 
     @Test
     public void subMillisecondTimeout() {
-        long start = System.nanoTime();
+        // the route answers after 400ms: a timeout rounded down to "no timeout" would return "late" instead of failing
         assertThatThrownBy(() -> retrieve("direct:slow", Query.from("q"),
                 r -> r.setTimeout(Duration.ofNanos(100_000))))
                 .isInstanceOf(CamelExecutionException.class)
                 .hasMessageContaining("timed out")
                 .hasRootCauseInstanceOf(TimeoutException.class);
-        assertThat(Duration.ofNanos(System.nanoTime() - start)).isLessThan(Duration.ofSeconds(1));
+    }
+
+    @Test
+    public void defaultTimeoutIsFinite() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        assertThat(retriever.getTimeout()).isEqualTo(CamelContentRetriever.DEFAULT_TIMEOUT);
+        // null still waits until the route answers
+        assertThat(retrieve("direct:string", Query.from("x"), r -> r.setTimeout(null))).hasSize(1);
+    }
+
+    @Test
+    public void conversionFailureFollowsOnError() {
+        assertThat(retrieve("direct:unconvertible", Query.from("q"), r -> r.setOnError(OnError.EMPTY))).isEmpty();
+        assertThatThrownBy(() -> retrieve("direct:unconvertible", Query.from("q")))
+                .isInstanceOf(CamelExecutionException.class)
+                .hasMessageContaining("cannot be converted");
+    }
+
+    @Test
+    public void failuresAreCountedByReason() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:fail").setOnError(OnError.EMPTY);
+        retriever.start();
+        try {
+            assertThat(retriever.retrieve(Query.from("a"))).isEmpty();
+            assertThat(retriever.retrieve(Query.from("b"))).isEmpty();
+        } finally {
+            retriever.stop();
+        }
+        CamelContentRetriever slow = new CamelContentRetriever(context, "slow", "direct:slow")
+                .setTimeout(Duration.ofMillis(50)).setOnError(OnError.EMPTY);
+        slow.start();
+        try {
+            assertThat(slow.retrieve(Query.from("c"))).isEmpty();
+        } finally {
+            slow.stop();
+        }
+
+        assertThat(retriever.getRetrievalCount()).isEqualTo(2);
+        assertThat(retriever.getFailureCount()).isEqualTo(2);
+        assertThat(retriever.getFailureCount(RetrievalFailure.ROUTE_FAILURE)).isEqualTo(2);
+        assertThat(retriever.getFailureCounts()).containsEntry("ROUTE_FAILURE", 2L).containsEntry("TIMEOUT", 0L);
+        assertThat(slow.getFailureCount(RetrievalFailure.TIMEOUT)).isEqualTo(1);
+    }
+
+    @Test
+    public void successIsCountedWithoutFailure() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        retriever.start();
+        try {
+            retriever.retrieve(Query.from("x"));
+        } finally {
+            retriever.stop();
+        }
+        assertThat(retriever.getRetrievalCount()).isEqualTo(1);
+        assertThat(retriever.getFailureCount()).isZero();
+    }
+
+    @Test
+    public void virtualMachineErrorIgnoresOnError() {
+        // Camel leaves the exchange that failed with a VirtualMachineError inflight: do not wait for it at shutdown
+        context.getShutdownStrategy().setTimeout(1);
+        assertThatThrownBy(() -> retrieve("direct:vmError", Query.from("q"), r -> r.setOnError(OnError.EMPTY)))
+                .isInstanceOf(StackOverflowError.class);
+    }
+
+    @Test
+    public void addServiceAfterStartIsAllowed() throws Exception {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        retriever.start();
+        context.addService(retriever);
+        assertThat(texts(retriever.retrieve(Query.from("x")))).containsExactly("found: x");
+        context.removeService(retriever);
+        retriever.stop();
+    }
+
+    @Test
+    public void camelContextCannotBeNullOrChangedOnceStarted() throws Exception {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string");
+        assertThatThrownBy(() -> retriever.setCamelContext(null)).isInstanceOf(IllegalArgumentException.class);
+        retriever.start();
+        try (DefaultCamelContext other = new DefaultCamelContext()) {
+            assertThatThrownBy(() -> retriever.setCamelContext(other)).isInstanceOf(IllegalStateException.class);
+        } finally {
+            retriever.stop();
+        }
     }
 
     private CamelContentRetriever holdRetriever() {
@@ -344,7 +437,8 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
         // the second call waits for a free thread only once the queue holds it
         await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> {
             assertThat(queuedCaller.get()).isNotNull();
-            assertThat(queuedCaller.get().getState()).isEqualTo(Thread.State.WAITING);
+            // timed: the retriever waits at most its timeout
+            assertThat(queuedCaller.get().getState()).isEqualTo(Thread.State.TIMED_WAITING);
         });
         return queued;
     }
@@ -447,4 +541,10 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
                 .hasToString("CamelContentRetriever[kb -> http://host/search?password=xxxxxx]");
     }
 
+    private static final class Unconvertible {
+        @Override
+        public String toString() {
+            throw new IllegalStateException("cannot render");
+        }
+    }
 }
