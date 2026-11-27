@@ -19,6 +19,7 @@ package org.apache.camel.component.langchain4j.core.rag;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -107,10 +108,18 @@ public class CamelContentRetrieverVirtualThreadsTest extends CamelTestSupport {
         ExecutorService callers = Executors.newFixedThreadPool(3);
         try {
             List<Future<List<Content>>> admitted = new ArrayList<>();
+            List<Thread> callerThreads = new CopyOnWriteArrayList<>();
             for (int i = 0; i < 3; i++) {
-                admitted.add(callers.submit(() -> retriever.retrieve(Query.from("q"))));
+                admitted.add(callers.submit(() -> {
+                    callerThreads.add(Thread.currentThread());
+                    return retriever.retrieve(Query.from("q"));
+                }));
             }
             await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> assertThat(running).hasValue(2));
+            // every admitted caller holds its slot only once it waits on its result, timed by the retriever timeout
+            await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> assertThat(callerThreads)
+                    .hasSize(3)
+                    .allSatisfy(t -> assertThat(t.getState()).isEqualTo(Thread.State.TIMED_WAITING)));
 
             long start = System.nanoTime();
             assertThatThrownBy(() -> retriever.retrieve(Query.from("rejected")))

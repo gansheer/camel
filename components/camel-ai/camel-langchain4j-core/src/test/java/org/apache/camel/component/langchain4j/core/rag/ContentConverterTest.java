@@ -17,9 +17,12 @@
 package org.apache.camel.component.langchain4j.core.rag;
 
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.embedding.Embedding;
@@ -243,6 +246,44 @@ public class ContentConverterTest extends CamelTestSupport {
     public void iteratorBodyIsSplit() {
         assertThat(texts(ContentConverter.toContents(exchange(List.of("a", "b").iterator()), "src", null, 0, 0)))
                 .containsExactly("a", "b");
+    }
+
+    @Test
+    public void iteratorIsReadUpToMaxResults() {
+        Iterator<String> iterator = List.of("a", " ", "b", "c").iterator();
+
+        assertThat(texts(ContentConverter.toContents(exchange(iterator), "src", null, 2, 0))).containsExactly("a", "b");
+        assertThat(iterator.next()).isEqualTo("c");
+    }
+
+    @Test
+    public void streamBodyIsSplitAndClosed() {
+        AtomicBoolean closed = new AtomicBoolean();
+        Stream<String> stream = Stream.of("a", "b", "c").onClose(() -> closed.set(true));
+
+        assertThat(texts(ContentConverter.toContents(exchange(stream), "src", null, 2, 0))).containsExactly("a", "b");
+        assertThat(closed).isTrue();
+    }
+
+    @Test
+    public void embeddingMatchOfContentKeepsTheMatchScore() {
+        Content stored = Content.from(TextSegment.from("policy text"), Map.of(ContentMetadata.SCORE, 0.1d));
+        EmbeddingMatch<Content> match = new EmbeddingMatch<>(0.8d, "emb-1", Embedding.from(new float[] { 0.1f }), stored);
+
+        Content content = ContentConverter.toContents(exchange(List.of(match)), "kb", null, 0, 0).get(0);
+
+        assertThat(content.metadata()).containsEntry(ContentMetadata.SCORE, 0.8d)
+                .containsEntry(ContentMetadata.EMBEDDING_ID, "emb-1");
+    }
+
+    @Test
+    public void documentIdKeyReadsSegmentMetadata() {
+        TextSegment segment = TextSegment.from("policy text", Metadata.from("docId", "expenses.md"));
+
+        Map<String, Object> metadata = metadata(
+                ContentConverter.toContents(exchange(List.of(segment)), "kb", "docId", 0, 0).get(0));
+
+        assertThat(metadata).containsEntry(METADATA_DOCUMENT_ID, "expenses.md");
     }
 
     @Test

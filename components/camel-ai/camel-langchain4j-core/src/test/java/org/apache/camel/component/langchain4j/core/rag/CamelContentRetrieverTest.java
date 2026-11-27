@@ -413,6 +413,15 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
         }
     }
 
+    @Test
+    public void boundsOverflowFailsStart() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:string")
+                .setConcurrency(2).setQueueCapacity(Integer.MAX_VALUE);
+
+        assertThatThrownBy(retriever::start).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("src: concurrency + queueCapacity must not exceed 2147483647: 2 + 2147483647");
+    }
+
     private CamelContentRetriever holdRetriever() {
         return new CamelContentRetriever(context, "hold", "direct:hold").setConcurrency(1).setQueueCapacity(1);
     }
