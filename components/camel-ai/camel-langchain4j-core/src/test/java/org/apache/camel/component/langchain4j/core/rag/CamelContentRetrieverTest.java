@@ -29,9 +29,11 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import dev.langchain4j.data.document.Metadata;
 import dev.langchain4j.data.message.UserMessage;
@@ -62,6 +64,7 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
     private final CountDownLatch holdStarted = new CountDownLatch(1);
     private final CountDownLatch holdRelease = new CountDownLatch(1);
     private final AtomicInteger holdCalls = new AtomicInteger();
+    private final AtomicBoolean streamClosed = new AtomicBoolean();
 
     @Override
     protected RouteBuilder createRouteBuilder() {
@@ -87,6 +90,11 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
                 from("direct:other").setBody(constant(List.of(42, new StringBuilder("sb"))));
                 from("direct:three").setBody(constant(List.of("one", "two", "three")));
                 from("direct:slow").delay(400).setBody(constant("late"));
+                from("direct:failingStream")
+                        .process(e -> e.getMessage().setBody(Stream.of("a").onClose(() -> streamClosed.set(true))))
+                        .throwException(new IllegalStateException("boom"));
+                from("direct:lateStream").delay(400)
+                        .process(e -> e.getMessage().setBody(Stream.of("a").onClose(() -> streamClosed.set(true))));
                 from("direct:hold").process(e -> {
                     holdCalls.incrementAndGet();
                     holdStarted.countDown();
@@ -286,6 +294,26 @@ public class CamelContentRetrieverTest extends CamelTestSupport {
                 .isInstanceOf(CamelExecutionException.class)
                 .hasRootCauseInstanceOf(IllegalStateException.class)
                 .hasRootCauseMessage("boom");
+    }
+
+    @Test
+    public void bodyOfAFailedRouteIsClosed() {
+        assertThat(retrieve("direct:failingStream", Query.from("q"), r -> r.setOnError(OnError.EMPTY))).isEmpty();
+        assertThat(streamClosed).isTrue();
+    }
+
+    @Test
+    public void lateAnswerIsClosed() {
+        CamelContentRetriever retriever = new CamelContentRetriever(context, "src", "direct:lateStream")
+                .setTimeout(Duration.ofMillis(50)).setOnError(OnError.EMPTY);
+        retriever.start();
+        try {
+            assertThat(retriever.retrieve(Query.from("q"))).isEmpty();
+            // the route answers after the caller gave up: nobody converts the answer, so it is closed
+            await().atMost(5, TimeUnit.SECONDS).untilTrue(streamClosed);
+        } finally {
+            retriever.stop();
+        }
     }
 
     @Test

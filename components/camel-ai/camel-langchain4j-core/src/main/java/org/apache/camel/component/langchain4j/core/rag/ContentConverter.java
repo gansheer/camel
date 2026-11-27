@@ -16,6 +16,8 @@
  */
 package org.apache.camel.component.langchain4j.core.rag;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,6 +38,7 @@ import dev.langchain4j.rag.content.ContentMetadata;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
 import org.apache.camel.Exchange;
 import org.apache.camel.component.langchain4j.core.LangChain4j;
+import org.apache.camel.util.IOHelper;
 
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.INGEST_METADATA_DOCUMENT_ID;
 import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrieverConstants.METADATA_DOCUMENT_ID;
@@ -51,13 +54,14 @@ import static org.apache.camel.component.langchain4j.core.rag.CamelContentRetrie
  * <li>anything else: converted to {@link String} with the Camel type converter</li>
  * </ul>
  * A {@link Collection}, an object array, an {@link Iterator} or a {@link Stream} body is split into its elements; any
- * other body is a single element. Reading stops once {@code maxResults} items are converted; a stream is closed. Blank
- * elements are skipped. Every segment gets {@value CamelContentRetrieverConstants#METADATA_SOURCE} and the response
- * headers prefixed with {@value LangChain4j#METADATA_PREFIX}. The reserved {@code camel_retrieval_*} and
- * {@code camel_ingest_*} keys never come from response headers. A segment may set
- * {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID} itself; otherwise its
- * {@value CamelContentRetrieverConstants#INGEST_METADATA_DOCUMENT_ID}, written by camel-langchain4j-ingest, is copied
- * to it.
+ * other body is a single element. Reading stops once {@code maxResults} items or {@code maxChars} characters are
+ * converted, and a body holding a resource (a {@link Stream}, a {@link java.io.Closeable} iterator) is then closed.
+ * Blank elements are skipped. Every segment gets {@value CamelContentRetrieverConstants#METADATA_SOURCE} and the
+ * response headers prefixed with {@value LangChain4j#METADATA_PREFIX}. The reserved {@code camel_retrieval_*} and
+ * {@code camel_ingest_*} keys never come from response headers.
+ * {@value CamelContentRetrieverConstants#METADATA_DOCUMENT_ID} comes from the first of: the {@code documentIdKey} entry
+ * of a {@link Map} or metadata key of a segment, the key already set on the segment, or its
+ * {@value CamelContentRetrieverConstants#INGEST_METADATA_DOCUMENT_ID}, written by camel-langchain4j-ingest.
  * <p>
  * {@code maxResults} keeps the first N items, {@code maxChars} truncates the combined text. {@code 0} means unlimited,
  * as {@code maxDocumentSize} in camel-langchain4j-ingest.
@@ -73,13 +77,40 @@ final class ContentConverter {
     static List<Content> toContents(
             Exchange exchange, String sourceName, String documentIdKey, int maxResults, int maxChars) {
         Object body = exchange.getMessage().getBody();
-        if (body instanceof Stream<?> stream) {
-            // a stream may hold a resource (Files.lines): close it, read or not
-            try (stream) {
-                return toContents(exchange, stream.iterator(), sourceName, documentIdKey, maxResults, maxChars);
-            }
+        // reading may stop early: a body holding a resource (Files.lines, the Scanner of tokenize) is closed once
+        // converted, read in full or not
+        List<Content> contents;
+        try {
+            Iterator<?> items = body instanceof Stream<?> stream ? stream.iterator() : items(body);
+            contents = toContents(exchange, items, sourceName, documentIdKey, maxResults, maxChars);
+        } catch (RuntimeException e) {
+            discard(exchange);
+            throw e;
         }
-        return toContents(exchange, items(body), sourceName, documentIdKey, maxResults, maxChars);
+        close(body);
+        return contents;
+    }
+
+    /** Releases what the body of a response that is never converted holds, such as an answer after a timeout. */
+    static void discard(Exchange exchange) {
+        try {
+            close(exchange.getMessage().getBody());
+        } catch (RuntimeException e) {
+            // nothing reads this answer: a failing close must not fail anything else
+        }
+    }
+
+    private static void close(Object body) {
+        if (body instanceof Stream<?> stream) {
+            stream.close();
+            return;
+        }
+        try {
+            // a Closeable iterator, as the splitter closes it; rethrows the read error a Scanner swallowed
+            IOHelper.closeIterator(body);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private static List<Content> toContents(
@@ -90,11 +121,15 @@ final class ContentConverter {
         }
         Map<String, Object> headerMetadata = headerMetadata(exchange);
         List<Content> contents = new ArrayList<>();
-        // stop at maxResults: the rest of an iterator or a stream is never read
-        while (items.hasNext() && (maxResults == 0 || contents.size() < maxResults)) {
+        // stop once maxResults items or maxChars characters are read: the rest of an iterator or a stream is never
+        // pulled, not even one element to look ahead
+        int chars = 0;
+        while ((maxResults == 0 || contents.size() < maxResults) && (maxChars == 0 || chars < maxChars)
+                && items.hasNext()) {
             Content content = toContent(exchange, items.next(), sourceName, documentIdKey, headerMetadata);
             if (content != null) {
                 contents.add(content);
+                chars += content.textSegment().text().length();
             }
         }
         if (maxChars > 0) {

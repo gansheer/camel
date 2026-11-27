@@ -98,8 +98,13 @@ the vector is dropped. This is the default output of a `langchain4j-embeddingsto
 |===
 
 A `Collection`, an object array, an `Iterator` or a `Stream` body is split into its elements; any other body is a
-single element. Blank elements are skipped. Reading stops once `maxResults` items are converted, so the rest of an
-`Iterator` or a `Stream` is never read; a `Stream` is closed.
+single element. Blank elements are skipped. Reading stops once `maxResults` items or `maxChars` characters are
+converted, so the rest of an `Iterator` or a `Stream` is never read. A body holding a resource — a `Stream`, a
+`Closeable` iterator such as the `Scanner` of `tokenize` — is closed afterwards, and also when the route fails or
+answers after the `timeout`.
+
+The body is converted after the route has completed. A body that the route closes on completion, such as a camel-sql
+`StreamList` result, gives no content: materialize it in the route instead (`outputType=SelectList` for camel-sql).
 
 Response headers prefixed with `langchain4j.metadata.` are copied to the segment metadata with the prefix stripped.
 
@@ -138,7 +143,8 @@ answers or the configured `timeout` elapses.
 |Option |Default |Effect
 
 |`timeout` |30 seconds |how long `retrieve()` waits for the route, time spent in the queue included; `null` waits
-until the route answers
+until the route answers. The conversion of the response body comes after it, on the calling thread, bounded by
+`maxResults` and `maxChars`
 |`onError` |`FAIL` |`FAIL` throws a `CamelExecutionException`, `EMPTY` logs a warning and returns no content
 |`maxResults` |`0` (unlimited) |maximum number of content items this source contributes
 |`maxChars` |`0` (unlimited) |maximum number of characters this source contributes across all items

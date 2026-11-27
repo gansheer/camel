@@ -16,6 +16,7 @@
  */
 package org.apache.camel.component.langchain4j.core.rag;
 
+import java.io.Closeable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -263,6 +264,68 @@ public class ContentConverterTest extends CamelTestSupport {
 
         assertThat(texts(ContentConverter.toContents(exchange(stream), "src", null, 2, 0))).containsExactly("a", "b");
         assertThat(closed).isTrue();
+    }
+
+    @Test
+    public void closeableIteratorIsClosedOnceRead() {
+        CountingIterator iterator = new CountingIterator("a", "b", "c");
+
+        assertThat(texts(ContentConverter.toContents(exchange(iterator), "src", null, 1, 0))).containsExactly("a");
+        assertThat(iterator.closed).isTrue();
+    }
+
+    @Test
+    public void readingStopsAtMaxResultsWithoutLookAhead() {
+        CountingIterator iterator = new CountingIterator("a", "b", "c", "d");
+
+        ContentConverter.toContents(exchange(iterator), "src", null, 2, 0);
+
+        assertThat(iterator.pulled).isEqualTo(2);
+    }
+
+    @Test
+    public void readingStopsOnceMaxCharsIsReached() {
+        CountingIterator iterator = new CountingIterator("aaa", "bbb", "ccc");
+
+        assertThat(texts(ContentConverter.toContents(exchange(iterator), "src", null, 0, 4))).containsExactly("aaa", "b");
+        assertThat(iterator.pulled).isEqualTo(2);
+    }
+
+    @Test
+    public void documentIdKeyWinsOverTheSegmentDocumentId() {
+        TextSegment segment = TextSegment.from("policy text",
+                Metadata.from("docId", "from-key").put(METADATA_DOCUMENT_ID, "from-segment"));
+
+        Map<String, Object> metadata = metadata(
+                ContentConverter.toContents(exchange(List.of(segment)), "kb", "docId", 0, 0).get(0));
+
+        assertThat(metadata).containsEntry(METADATA_DOCUMENT_ID, "from-key");
+    }
+
+    private static final class CountingIterator implements Iterator<String>, Closeable {
+        private final Iterator<String> items;
+        private int pulled;
+        private boolean closed;
+
+        CountingIterator(String... items) {
+            this.items = List.of(items).iterator();
+        }
+
+        @Override
+        public boolean hasNext() {
+            return items.hasNext();
+        }
+
+        @Override
+        public String next() {
+            pulled++;
+            return items.next();
+        }
+
+        @Override
+        public void close() {
+            closed = true;
+        }
     }
 
     @Test

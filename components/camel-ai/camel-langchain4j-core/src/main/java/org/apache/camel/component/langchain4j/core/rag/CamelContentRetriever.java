@@ -329,6 +329,7 @@ public class CamelContentRetriever extends ServiceSupport implements ContentRetr
                     ? future.get()
                     : future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
             if (answer.getException() != null) {
+                ContentConverter.discard(answer);
                 rethrowVirtualMachineError(answer.getException());
                 return fail(RetrievalFailure.ROUTE_FAILURE, "failed", answer, answer.getException());
             }
@@ -339,11 +340,11 @@ public class CamelContentRetriever extends ServiceSupport implements ContentRetr
             }
         } catch (TimeoutException e) {
             // a call still queued is skipped; one already running keeps running until the source answers
-            future.cancel(false);
+            giveUp(future);
             return fail(RetrievalFailure.TIMEOUT, "timed out after " + timeout, exchange, e);
         } catch (InterruptedException e) {
             // the caller is going away: it cannot use a result, so the interrupt never follows onError
-            future.cancel(false);
+            giveUp(future);
             Thread.currentThread().interrupt();
             throw new CamelExecutionException(name + " was interrupted while waiting for the route", exchange, e);
         } catch (ExecutionException e) {
@@ -352,6 +353,13 @@ public class CamelContentRetriever extends ServiceSupport implements ContentRetr
             return cause instanceof RejectedExecutionException
                     ? fail(RetrievalFailure.STOPPED, "was stopped", exchange, cause)
                     : fail(RetrievalFailure.ROUTE_FAILURE, "failed", exchange, cause);
+        }
+    }
+
+    // the answer may have arrived just before the caller gave up: nobody converts it then, so release its body
+    private static void giveUp(CompletableFuture<Exchange> future) {
+        if (!future.cancel(false) && !future.isCompletedExceptionally()) {
+            ContentConverter.discard(future.join());
         }
     }
 
@@ -427,7 +435,11 @@ public class CamelContentRetriever extends ServiceSupport implements ContentRetr
                         return;
                     }
                     try {
-                        future.complete(target.template().send(target.endpoint(), exchange));
+                        Exchange answer = target.template().send(target.endpoint(), exchange);
+                        // the caller gave up while the route ran: nobody converts the answer
+                        if (!future.complete(answer)) {
+                            ContentConverter.discard(answer);
+                        }
                     } catch (Throwable e) {
                         // the caller rethrows a VirtualMachineError
                         future.completeExceptionally(e);
